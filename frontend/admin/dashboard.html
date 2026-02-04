@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="../css/admin.css">
+
+  <script src="https://cdn.jsdelivr.net/npm/@editorjs/embed@latest"></script>
+
+  <!-- Editor.js -->
+  <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@editorjs/paragraph@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@editorjs/image@latest"></script>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="card">
+    <h2>Create / Edit Post</h2>
+
+    <form id="postForm">
+      <input type="hidden" id="postId">
+
+      <input id="title" placeholder="Title" required>
+      <div class="space"></div>
+
+      <input id="slug" placeholder="URL slug (auto-generated)" required>
+      <div class="space"></div>
+
+      <div id="editor"></div>
+
+      <button type="submit">Save Post</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Posts</h2>
+    <ul id="posts" class="post-list"></ul>
+  </div>
+
+</div>
+
+<script>
+let isEditing = false;
+
+const editor = new EditorJS({
+  holder: "editor",
+  tools: {
+    paragraph: {
+      class: Paragraph,
+      inlineToolbar: true
+    },
+    image: {
+      class: ImageTool,
+      config: {
+        uploader: {
+          uploadByFile(file) {
+            const form = new FormData();
+            form.append("image", file);
+
+            return fetch("/api/upload", {
+              method: "POST",
+              body: form
+            })
+              .then(res => res.json())
+              .then(data => ({
+                success: 1,
+                file: { url: data.url }
+              }));
+          }
+        }
+      }
+    },
+    embed: {
+      class: Embed,
+      config: {
+        services: {
+          youtube: true
+        }
+      }
+    }
+  }
+});
+
+async function loadPosts() {
+  const res = await fetch("/api/posts");
+  const posts = await res.json();
+
+  const list = document.getElementById("posts");
+  list.innerHTML = "";
+
+  posts.forEach(p => {
+    const li = document.createElement("li");
+    li.innerHTML = `
+      <span>${p.title}</span>
+      <div class="row">
+        <button class="secondary" onclick="editPost('${p.slug}')">Edit</button>
+        <button class="danger" onclick="deletePost('${p._id}')">Delete</button>
+      </div>
+    `;
+    list.appendChild(li);
+  });
+}
+
+async function editPost(slugValue) {
+  const res = await fetch("/api/posts/" + slugValue);
+  const post = await res.json();
+
+  isEditing = true;
+
+  postId.value = post._id;
+  title.value = post.title;
+  slug.value = post.slug;
+
+  await editor.render({ blocks: post.content });
+}
+
+async function deletePost(id) {
+  if (!confirm("Delete this post?")) return;
+
+  await fetch("/api/posts/" + id, { method: "DELETE" });
+  loadPosts();
+}
+
+document.getElementById("postForm").addEventListener("submit", async e => {
+  e.preventDefault();
+
+  const data = await editor.save();
+
+  const post = {
+    title: title.value,
+    slug: slug.value,
+    excerpt: data.blocks[0]?.data?.text?.slice(0, 100) || "",
+    content: data.blocks
+  };
+
+  const method = postId.value ? "PUT" : "POST";
+  const url = postId.value
+    ? "/api/posts/" + postId.value
+    : "/api/posts";
+
+  await fetch(url, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(post)
+  });
+
+  postForm.reset();
+  editor.clear();
+  loadPosts();
+});
+
+loadPosts();
+
+// Auto-generate slug from title
+title.addEventListener("input", () => {
+  if (isEditing) return;
+
+  slug.value = title.value
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w\s-]/g, "")
+    .replace(/\s+/g, "-");
+});
+
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Login</title>
+  <link rel="stylesheet" href="../css/admin.css">
+</head>
+<body>
+
+<div class="container">
+  <div class="card">
+    <h2>Admin Login</h2>
+
+    <form id="loginForm">
+      <input
+        type="password"
+        id="password"
+        placeholder="Admin password"
+        required
+      />
+
+      <button type="submit">Login</button>
+    </form>
+
+    <div id="error" class="error"></div>
+  </div>
+</div>
+
+<script>
+document.getElementById("loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+
+  const password = document.getElementById("password").value;
+  const error = document.getElementById("error");
+  error.textContent = "";
+
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password })
+  });
+
+  if (!res.ok) {
+    error.textContent = "Wrong password";
+    return;
+  }
+
+  // ✅ success → redirect
+  window.location.href = "/admin/dashboard.html";
+});
+</script>
+
+</body>
+</html>
