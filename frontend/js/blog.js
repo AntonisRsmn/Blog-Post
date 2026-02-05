@@ -6,7 +6,6 @@ async function loadPosts() {
   const posts = await res.json();
 
   container.innerHTML = "";
-
   if (!posts.length) return;
 
   posts.forEach((post, index) => {
@@ -18,7 +17,7 @@ async function loadPosts() {
     card.className = `card ${index === 0 ? "featured" : "small"}`;
 
     card.innerHTML = `
-      ${imageUrl ? `<img src="${imageUrl}">` : ""}
+      ${imageUrl ? `<img src="${imageUrl}" alt="${post.title}">` : ""}
       <div class="card-overlay"></div>
       <div class="card-content">
         <h2>${post.title}</h2>
@@ -38,24 +37,35 @@ async function loadPost() {
   const res = await fetch("/api/posts/" + slug);
   const post = await res.json();
 
-  let heroImage = post.content.find(b => b.type === "image");
+  // First image is the hero
+  const heroImage = post.content.find(b => b.type === "image");
 
-  let bodyHtml = post.content.map(block => {
+  const bodyHtml = post.content.map(block => {
+    // Skip hero image in body
+    if (block === heroImage) return "";
+
     if (block.type === "paragraph") {
       return `<p>${block.data.text}</p>`;
     }
 
     if (block.type === "image") {
-      return `<img src="${block.data.file.url}" />`;
+      return `
+        <div class="article-media">
+          <img src="${block.data.file.url}" alt="${post.title}">
+        </div>
+      `;
     }
 
     if (block.type === "embed" && block.data.service === "youtube") {
+      const videoId = block.data.source.split("v=")[1];
       return `
-        <div class="embed">
-          <iframe
-            src="https://www.youtube.com/embed/${block.data.source.split("v=")[1]}"
-            allowfullscreen>
-          </iframe>
+        <div class="article-media">
+          <div class="embed">
+            <iframe
+              src="https://www.youtube.com/embed/${videoId}"
+              allowfullscreen>
+            </iframe>
+          </div>
         </div>
       `;
     }
@@ -66,7 +76,7 @@ async function loadPost() {
   container.innerHTML = `
     ${heroImage ? `
       <div class="hero">
-        <img src="${heroImage.data.file.url}">
+        <img src="${heroImage.data.file.url}" alt="${post.title}">
         <div class="hero-overlay"></div>
         <div class="hero-content">
           <h1>${post.title}</h1>
@@ -80,7 +90,6 @@ async function loadPost() {
     ${bodyHtml}
   `;
 }
-
 
 loadPosts();
 loadPost();
