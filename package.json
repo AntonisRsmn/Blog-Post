@@ -1,4 +1,8 @@
 {
+  "scripts": {
+    "start": "node server/server.js",
+    "build": "npm install"
+  },
   "dependencies": {
     "bcrypt": "^6.0.0",
     "cloudinary": "^2.9.0",
