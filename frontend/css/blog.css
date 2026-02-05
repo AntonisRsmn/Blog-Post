@@ -76,10 +76,19 @@ article h1 {
   font-size: 2.2rem;
 }
 
-article img {
-  max-width: 100%;
+/* Article images: same width as hero */
+
+.article-media {
+  width: 100%;
+  margin: 40px 0;
+}
+
+.article-media img {
+  width: 100%;
+  max-width: var(--max-width); /* SAME as hero */
+  display: block;
+  margin: 0 auto;
   border-radius: var(--radius);
-  margin: 20px 0;
 }
 
 article p {
