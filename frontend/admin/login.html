@@ -1,29 +1,60 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Login</title>
   <link rel="stylesheet" href="../css/admin.css">
 </head>
 <body>
 
-<div class="container">
+<div class="container" style="max-width: 400px; margin: 100px auto; padding: 20px;">
   <div class="card">
-    <h2>Admin Login</h2>
+    <h2 style="text-align: center; margin-bottom: 24px;">Admin Login</h2>
 
     <form id="loginForm">
       <input
         type="password"
         id="password"
-        placeholder="Admin password"
+        placeholder="Enter admin password"
         required
+        autocomplete="off"
       />
 
-      <button type="submit">Login</button>
+      <button type="submit" style="margin-top: 16px;">Sign In</button>
     </form>
 
-    <div id="error" class="error"></div>
+    <div id="error" class="error" style="display: none;"></div>
   </div>
 </div>
+
+<script>
+document.getElementById("loginForm").addEventListener("submit", async e => {
+  e.preventDefault();
+
+  const password = document.getElementById("password").value;
+  const error = document.getElementById("error");
+  error.style.display = "none";
+
+  const res = await fetch("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password })
+  });
+
+  if (!res.ok) {
+    error.textContent = "Wrong password";
+    error.style.display = "block";
+    return;
+  }
+
+  // ✅ success → redirect
+  window.location.href = "/admin/dashboard.html";
+});
+</script>
+
+</body>
+</html>
 
 <script>
 document.getElementById("loginForm").addEventListener("submit", async e => {
