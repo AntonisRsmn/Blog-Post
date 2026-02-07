@@ -1,0 +1,53 @@
+/* Green color palette for theme */
+:root[data-theme="light"] {
+  --bg: #f6f8f6;
+  --panel: #fff;
+  --surface: #fff;
+  --text: #1a2a1a;
+  --muted: #6b8b6b;
+  --accent: #2ecc40;
+  --accent-dark: #27ae60;
+  --border: #e5e7eb;
+  --radius: 12px;
+  --card-shadow: 0 2px 8px rgba(30,40,80,0.08);
+}
+
+:root[data-theme="dark"] {
+  --bg: #1a2a1a;
+  --panel: #223322;
+  --surface: #223322;
+  --text: #e7f9ee;
+  --muted: #6b8b6b;
+  --accent: #2ecc40;
+  --accent-dark: #27ae60;
+  --border: #223322;
+  --radius: 12px;
+  --card-shadow: 0 2px 8px rgba(30,40,80,0.12);
+}
+
+#theme-toggle {
+  background: var(--accent);
+  color: #fff;
+}
+
+.nav-link {
+  font-weight: 500;
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  transition: background 0.2s;
+}
+.nav-link:hover {
+  background: var(--accent-dark);
+  color: #fff;
+}
+
+.footer-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 1000px;
+  margin: 0 auto;
+  padding: 24px 20px;
+  color: var(--muted);
+  font-size: 14px;
+}

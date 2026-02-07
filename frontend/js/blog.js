@@ -5,23 +5,48 @@ async function loadPosts() {
   const res = await fetch("/api/posts");
   const posts = await res.json();
 
-  container.innerHTML = "";
-  if (!posts.length) return;
+  posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  
+  console.log("Posts from API:", posts);
 
-  posts.forEach((post, index) => {
+  container.innerHTML = "";
+  if (!posts.length) {
+    container.innerHTML = '<div style="grid-column: span 12; text-align: center; color: var(--text-muted); padding: 40px 0;">No articles published yet.</div>';
+    return;
+  }
+
+  posts.forEach((post) => {
+    console.log("Processing post:", post.title);
+    console.log("Content blocks:", post.content);
+    
     const imageBlock = post.content?.find(b => b.type === "image");
-    const imageUrl = imageBlock?.data?.file?.url;
+    console.log("Image block found:", imageBlock);
+    
+    let imageUrl = null;
+    if (imageBlock) {
+      // Try multiple possible paths
+      imageUrl = imageBlock.data?.file?.url || 
+                 imageBlock.data?.url || 
+                 imageBlock.data?.file;
+      console.log("Image URL resolved to:", imageUrl);
+    }
 
     const card = document.createElement("a");
     card.href = `post.html?slug=${post.slug}`;
-    card.className = `card ${index === 0 ? "featured" : "small"}`;
+    card.className = "post-card";
+
+    const date = new Date(post.createdAt).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
 
     card.innerHTML = `
-      ${imageUrl ? `<img src="${imageUrl}" alt="${post.title}">` : ""}
-      <div class="card-overlay"></div>
-      <div class="card-content">
-        <h2>${post.title}</h2>
-        <p>${post.excerpt || ""}</p>
+      ${imageUrl ? `<img src="${imageUrl}" alt="${post.title}" class="post-card-image" onerror="console.log('Image failed to load:', '${imageUrl}')">` : '<div class="post-card-image" style="background: var(--bg-secondary);"></div>'}
+      <div class="post-card-content">
+        <h3 class="post-card-title">${post.title}</h3>
+        <p class="post-card-excerpt">${post.excerpt || 'Read more...'}</p>
+        <span class="post-card-meta">${date}</span>
       </div>
     `;
 
@@ -34,14 +59,21 @@ async function loadPost() {
   if (!container) return;
 
   const slug = new URLSearchParams(window.location.search).get("slug");
+  if (!slug) return;
+
   const res = await fetch("/api/posts/" + slug);
+  if (!res.ok) {
+    container.innerHTML = '<p style="color: var(--text-muted);">Post not found.</p>';
+    return;
+  }
+
   const post = await res.json();
+  console.log("Full post:", post);
 
-  // First image is the hero
-  const heroImage = post.content.find(b => b.type === "image");
+  const heroImage = post.content?.find(b => b.type === "image");
+  console.log("Hero image block:", heroImage);
 
-  const bodyHtml = post.content.map(block => {
-    // Skip hero image in body
+  const bodyHtml = post.content?.map(block => {
     if (block === heroImage) return "";
 
     if (block.type === "paragraph") {
@@ -49,47 +81,57 @@ async function loadPost() {
     }
 
     if (block.type === "image") {
-      return `
-        <div class="article-media">
-          <img src="${block.data.file.url}" alt="${post.title}">
-        </div>
-      `;
+      const imgUrl = block.data?.file?.url || 
+                     block.data?.url || 
+                     block.data?.file;
+      console.log("Image URL in body:", imgUrl);
+      return `<img src="${imgUrl}" alt="Article image" class="article-image">`;
     }
 
     if (block.type === "embed" && block.data.service === "youtube") {
       const videoId = block.data.source.split("v=")[1];
       return `
-        <div class="article-media">
-          <div class="embed">
-            <iframe
-              src="https://www.youtube.com/embed/${videoId}"
-              allowfullscreen>
-            </iframe>
-          </div>
+        <div class="article-embed">
+          <iframe
+            src="https://www.youtube.com/embed/${videoId}"
+            allowfullscreen>
+          </iframe>
         </div>
       `;
     }
 
     return "";
-  }).join("");
+  }).join("") || "";
+
+  const date = new Date(post.createdAt).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  });
+
+  const heroUrl = heroImage?.data?.file?.url || 
+                  heroImage?.data?.url || 
+                  heroImage?.data?.file;
 
   container.innerHTML = `
-    ${heroImage ? `
-      <div class="hero">
-        <img src="${heroImage.data.file.url}" alt="${post.title}">
-        <div class="hero-overlay"></div>
-        <div class="hero-content">
-          <h1>${post.title}</h1>
-          <div class="meta">
-            ${new Date(post.createdAt).toLocaleDateString()}
-          </div>
-        </div>
-      </div>
-    ` : `<h1>${post.title}</h1>`}
-
-    ${bodyHtml}
+    ${heroUrl ? `<img src="${heroUrl}" alt="${post.title}" class="article-image">` : ""}
+    <h1>${post.title}</h1>
+    <div class="article-meta">
+      <span>${date}</span>
+    </div>
+    <div class="article-content">
+      ${bodyHtml}
+    </div>
   `;
 }
 
-loadPosts();
-loadPost();
+// Load posts on page load
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    loadPosts();
+    loadPost();
+  });
+} else {
+  loadPosts();
+  loadPost();
+}

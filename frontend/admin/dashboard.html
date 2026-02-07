@@ -1,46 +1,90 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin Dashboard</title>
-  <link rel="stylesheet" href="../css/admin.css">
-
-  <script src="https://cdn.jsdelivr.net/npm/@editorjs/embed@latest"></script>
+  <link rel="stylesheet" href="../css/global.css" />
+  <link rel="stylesheet" href="../css/admin.css" />
 
   <!-- Editor.js -->
   <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@editorjs/paragraph@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@editorjs/image@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@editorjs/embed@latest"></script>
 </head>
 <body>
 
-<div class="container">
-
-  <div class="card">
-    <h2>Create / Edit Post</h2>
-
-    <form id="postForm">
-      <input type="hidden" id="postId">
-
-      <input id="title" placeholder="Title" required>
-      <div class="space"></div>
-
-      <input id="slug" placeholder="URL slug (auto-generated)" required>
-      <div class="space"></div>
-
-      <div id="editor"></div>
-
-      <button type="submit">Save Post</button>
-    </form>
+<header>
+  <div class="header-inner">
+    <a href="/" class="logo">My Blog</a>
+    <nav>
+      <a href="/" class="nav-link">Home</a>
+      <a href="/admin/dashboard.html" class="nav-link">Dashboard</a>
+      <button id="theme-toggle"></button>
+    </nav>
   </div>
+</header>
 
-  <div class="card">
-    <h2>Posts</h2>
-    <ul id="posts" class="post-list"></ul>
+<main>
+  <div class="admin-container">
+    <h1 style="margin-bottom: 30px; color: var(--accent);">Admin Dashboard</h1>
+    
+    <div class="admin-grid">
+      <!-- Post Editor -->
+      <div class="admin-section">
+        <h2>Create / Edit Post</h2>
+        <form id="postForm">
+          <input type="hidden" id="postId">
+          
+          <div class="form-group">
+            <label>Title</label>
+            <input id="title" type="text" placeholder="Post title" required>
+          </div>
+
+          <div class="form-group">
+            <label>Slug (URL)</label>
+            <input id="slug" type="text" placeholder="auto-slug" required>
+          </div>
+
+          <div class="form-group">
+            <label>Content</label>
+            <div id="editor"></div>
+          </div>
+
+          <button type="submit" style="width: 100%; padding: 12px;">Save Post</button>
+        </form>
+      </div>
+
+      <!-- Posts List -->
+      <div class="admin-section">
+        <h2>Published Posts</h2>
+        <ul id="posts" class="posts-list"></ul>
+      </div>
+    </div>
   </div>
+</main>
 
-</div>
+<footer>
+  <div class="footer-inner">
+    <p class="footer-text">© 2026 · My Blog Admin</p>
+    <div class="footer-links">
+      <a href="/" class="footer-btn">View Blog</a>
+      <a href="/admin/dashboard.html" class="footer-btn">Dashboard</a>
+    </div>
+    <p class="footer-text">Theme: <span id="theme-label">Light</span></p>
+  </div>
+</footer>
 
+<script src="../js/theme.js"></script>
 <script>
+function updateThemeLabel() {
+  const label = document.getElementById('theme-label');
+  const mode = document.documentElement.getAttribute('data-theme') || 'light';
+  label.textContent = mode === 'dark' ? 'Dark' : 'Light';
+}
+window.addEventListener('DOMContentLoaded', updateThemeLabel);
+
 let isEditing = false;
 
 const editor = new EditorJS({
@@ -89,11 +133,17 @@ async function loadPosts() {
   const list = document.getElementById("posts");
   list.innerHTML = "";
 
+  if (!posts.length) {
+    list.innerHTML = '<li style="padding: 16px; text-align: center; color: var(--text-muted);">No posts yet</li>';
+    return;
+  }
+
   posts.forEach(p => {
     const li = document.createElement("li");
+    li.className = "post-item";
     li.innerHTML = `
-      <span>${p.title}</span>
-      <div class="row">
+      <span class="post-item-title">${p.title}</span>
+      <div class="post-item-actions">
         <button class="secondary" onclick="editPost('${p.slug}')">Edit</button>
         <button class="danger" onclick="deletePost('${p._id}')">Delete</button>
       </div>
@@ -108,17 +158,19 @@ async function editPost(slugValue) {
 
   isEditing = true;
 
-  postId.value = post._id;
-  title.value = post.title;
-  slug.value = post.slug;
+  document.getElementById("postId").value = post._id;
+  document.getElementById("title").value = post.title;
+  document.getElementById("slug").value = post.slug;
 
   await editor.render({ blocks: post.content });
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 async function deletePost(id) {
-  if (!confirm("Delete this post?")) return;
+  if (!confirm("Are you sure you want to delete this post?")) return;
 
   await fetch("/api/posts/" + id, { method: "DELETE" });
+  alert("Post deleted!");
   loadPosts();
 }
 
@@ -128,42 +180,49 @@ document.getElementById("postForm").addEventListener("submit", async e => {
   const data = await editor.save();
 
   const post = {
-    title: title.value,
-    slug: slug.value,
+    title: document.getElementById("title").value,
+    slug: document.getElementById("slug").value,
     excerpt: data.blocks[0]?.data?.text?.slice(0, 100) || "",
-    content: data.blocks
+    content: data.blocks,
+    published: true
   };
 
-  const method = postId.value ? "PUT" : "POST";
-  const url = postId.value
-    ? "/api/posts/" + postId.value
+  const method = document.getElementById("postId").value ? "PUT" : "POST";
+  const url = document.getElementById("postId").value
+    ? "/api/posts/" + document.getElementById("postId").value
     : "/api/posts";
 
-  await fetch(url, {
+  const res = await fetch(url, {
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(post)
   });
 
-  postForm.reset();
-  editor.clear();
-  loadPosts();
+  if (res.ok) {
+    alert("Post saved successfully!");
+    document.getElementById("postForm").reset();
+    document.getElementById("postId").value = "";
+    editor.clear();
+    isEditing = false;
+    loadPosts();
+  } else {
+    alert("❌ Error saving post. Try again.");
+  }
 });
 
-loadPosts();
-
 // Auto-generate slug from title
-title.addEventListener("input", () => {
+document.getElementById("title").addEventListener("input", () => {
   if (isEditing) return;
 
-  slug.value = title.value
+  const slug = document.getElementById("title").value
     .toLowerCase()
     .trim()
     .replace(/[^\w\s-]/g, "")
     .replace(/\s+/g, "-");
+  document.getElementById("slug").value = slug;
 });
 
-
+loadPosts();
 </script>
 
 </body>

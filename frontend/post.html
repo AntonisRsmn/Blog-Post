@@ -2,27 +2,52 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Post</title>
-  <link rel="stylesheet" href="css/blog.css" />
+  <link rel="stylesheet" href="css/global.css" />
+  <link rel="stylesheet" href="css/article.css" />
 </head>
 <body>
 
 <header>
   <div class="header-inner">
-    <a href="/">← Back</a>
+    <a href="/" class="logo">My Blog</a>
+    <nav>
+      <a href="/" class="nav-link">Home</a>
+      <a href="/admin/login.html" class="nav-link">Admin</a>
+      <button id="theme-toggle"></button>
+    </nav>
   </div>
 </header>
 
 <main>
+  <a href="/" class="back-link">← Back to articles</a>
   <article id="post">
-    <p>Loading…</p>
+    <p>Loading article...</p>
   </article>
 </main>
 
 <footer>
-  © 2026 · My Blog
+  <div class="footer-inner">
+    <p class="footer-text">© 2026 · My Blog</p>
+    <div class="footer-links">
+      <a href="/" class="footer-btn">Home</a>
+      <a href="/admin/login.html" class="footer-btn">Admin</a>
+    </div>
+    <p class="footer-text">Theme: <span id="theme-label">Light</span></p>
+  </div>
 </footer>
 
+<script src="js/theme.js"></script>
 <script src="js/blog.js"></script>
+<script>
+function updateThemeLabel() {
+  const label = document.getElementById('theme-label');
+  const mode = document.documentElement.getAttribute('data-theme') || 'light';
+  label.textContent = mode === 'dark' ? 'Dark' : 'Light';
+}
+window.addEventListener('DOMContentLoaded', updateThemeLabel);
+</script>
+
 </body>
 </html>

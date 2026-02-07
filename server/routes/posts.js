@@ -9,7 +9,7 @@ const router = express.Router();
 // Get all published posts
 router.get("/", async (req, res) => {
   const posts = await Post.find({ published: true })
-    .select("title slug excerpt createdAt")
+    .select("title slug excerpt createdAt content")
     .sort({ createdAt: -1 });
 
   res.json(posts);
