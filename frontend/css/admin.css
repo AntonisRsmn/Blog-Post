@@ -25,6 +25,30 @@
   color: var(--text);
 }
 
+.admin-status {
+  display: none;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+}
+
+.admin-status.show {
+  display: block;
+}
+
+.admin-status.success {
+  background: var(--accent-light);
+  border: 1px solid var(--accent);
+  color: var(--text);
+}
+
+.admin-status.error {
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+}
+
 /* Form spacing */
 .form-group {
   margin-bottom: 16px;
@@ -154,9 +178,36 @@
   font-size: 1rem;
 }
 
+/* Profile page */
+.profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.profile-avatar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.profile-avatar img {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .profile-grid {
     grid-template-columns: 1fr;
   }
 }

@@ -1,6 +1,8 @@
 const express = require("express");
 const Post = require("../models/Post");
 const auth = require("../middleware/auth");
+const requireStaff = require("../middleware/requireStaff");
+const User = require("../models/User");
 
 const router = express.Router();
 
@@ -9,7 +11,7 @@ const router = express.Router();
 // Get all published posts
 router.get("/", async (req, res) => {
   const posts = await Post.find({ published: true })
-    .select("title slug excerpt createdAt content")
+    .select("title author authorId slug excerpt createdAt content")
     .sort({ createdAt: -1 });
 
   res.json(posts);
@@ -25,21 +27,36 @@ router.get("/:slug", async (req, res) => {
 /* ---------- ADMIN ---------- */
 
 // Create post
-router.post("/", auth, async (req, res) => {
-  const post = await Post.create(req.body);
+router.post("/", auth, requireStaff, async (req, res) => {
+  const user = await User.findById(req.user.userId).select("username email");
+  const author = user?.username || user?.email || "Unknown";
+  const post = await Post.create({ ...req.body, author, authorId: user?._id });
   res.json(post);
 });
 
 // Update post
-router.put("/:id", auth, async (req, res) => {
-  const post = await Post.findByIdAndUpdate(req.params.id, req.body, {
+router.put("/:id", auth, requireStaff, async (req, res) => {
+  const updates = { ...req.body };
+  delete updates.author;
+  delete updates.authorId;
+
+  const existing = await Post.findById(req.params.id).select("author authorId");
+  if (!existing) return res.status(404).json({ error: "Not found" });
+
+  if (!existing.author) {
+    const user = await User.findById(req.user.userId).select("username email");
+    updates.author = user?.username || user?.email || "Unknown";
+    updates.authorId = user?._id;
+  }
+
+  const post = await Post.findByIdAndUpdate(req.params.id, updates, {
     new: true
   });
   res.json(post);
 });
 
 // Delete post
-router.delete("/:id", auth, async (req, res) => {
+router.delete("/:id", auth, requireStaff, async (req, res) => {
   await Post.findByIdAndDelete(req.params.id);
   res.json({ success: true });
 });

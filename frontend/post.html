@@ -11,10 +11,10 @@
 
 <header>
   <div class="header-inner">
-    <a href="/" class="logo">My Blog</a>
+    <a href="/" class="logo">Rusman</a>
     <nav>
       <a href="/" class="nav-link">Home</a>
-      <a href="/admin/login.html" class="nav-link">Admin</a>
+      <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
       <button id="theme-toggle"></button>
     </nav>
   </div>
@@ -25,14 +25,23 @@
   <article id="post">
     <p>Loading article...</p>
   </article>
+  <section class="comments" id="comments">
+    <h2>Comments</h2>
+    <form id="commentForm" class="comment-form">
+      <textarea id="commentText" placeholder="Write a comment..." required></textarea>
+      <button type="submit">Post Comment</button>
+    </form>
+    <p id="commentStatus" class="comment-status"></p>
+    <div id="commentList" class="comment-list"></div>
+  </section>
 </main>
 
 <footer>
   <div class="footer-inner">
-    <p class="footer-text">© 2026 · My Blog</p>
+    <p class="footer-text">© 2026 · Rusman</p>
     <div class="footer-links">
       <a href="/" class="footer-btn">Home</a>
-      <a href="/admin/login.html" class="footer-btn">Admin</a>
+      <a href="/admin/login.html" class="footer-btn">Login</a>
     </div>
     <p class="footer-text">Theme: <span id="theme-label">Light</span></p>
   </div>

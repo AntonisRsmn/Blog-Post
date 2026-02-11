@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin Login</title>
+  <title>Admin Sign Up</title>
   <link rel="stylesheet" href="../css/global.css" />
   <link rel="stylesheet" href="../css/admin.css" />
 </head>
@@ -23,8 +23,8 @@
 <main>
   <div class="login-container">
     <div class="login-card">
-      <h2>Admin Login</h2>
-      <form id="loginForm" class="login-form">
+      <h2>Create Account</h2>
+      <form id="signupForm" class="login-form">
         <div class="form-group">
           <input
             type="email"
@@ -38,15 +38,24 @@
           <input
             type="password"
             id="password"
-            placeholder="Enter admin password"
+            placeholder="Password"
             required
-            autocomplete="off"
+            autocomplete="new-password"
           />
         </div>
-        <button type="submit">Sign In</button>
+        <div class="form-group">
+          <input
+            type="password"
+            id="confirm"
+            placeholder="Confirm password"
+            required
+            autocomplete="new-password"
+          />
+        </div>
+        <button type="submit">Sign Up</button>
       </form>
       <p style="margin-top: 12px; text-align: center; color: var(--text-muted);">
-        No account? <a href="/admin/signup.html">Create one</a>
+        Already have an account? <a href="/admin/login.html">Sign in</a>
       </p>
       <div id="error" class="error"></div>
     </div>
@@ -73,37 +82,38 @@ function updateThemeLabel() {
 }
 window.addEventListener('DOMContentLoaded', updateThemeLabel);
 
-document.getElementById("loginForm").addEventListener("submit", async e => {
+document.getElementById("signupForm").addEventListener("submit", async e => {
   e.preventDefault();
 
   const email = document.getElementById("email").value;
   const password = document.getElementById("password").value;
+  const confirm = document.getElementById("confirm").value;
   const error = document.getElementById("error");
   error.textContent = "";
   error.classList.remove("show");
 
-  const res = await fetch("/api/auth/login", {
+  if (password !== confirm) {
+    error.textContent = "Passwords do not match.";
+    error.classList.add("show");
+    return;
+  }
+
+  const res = await fetch("/api/auth/signup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password })
   });
 
   if (!res.ok) {
-    error.textContent = "Wrong password. Please try again.";
+    const message = res.status === 409
+      ? "Email already registered."
+      : "Sign up failed. Try again.";
+    error.textContent = message;
     error.classList.add("show");
     return;
   }
 
-  const profileRes = await fetch("/api/auth/profile");
-  if (!profileRes.ok) {
-    window.location.href = "/admin/profile.html";
-    return;
-  }
-
-  const profile = await profileRes.json();
-  window.location.href = profile.role === "staff"
-    ? "/admin/dashboard.html"
-    : "/admin/profile.html";
+  window.location.href = "/admin/profile.html";
 });
 </script>
 

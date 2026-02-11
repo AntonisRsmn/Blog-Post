@@ -27,3 +27,52 @@ function updateThemeLabel() {
 // On load
 const saved = localStorage.getItem('theme');
 setTheme(saved || 'light');
+
+let cachedProfile;
+
+async function getProfile() {
+  if (cachedProfile !== undefined) return cachedProfile;
+  const res = await fetch('/api/auth/profile');
+  if (!res.ok) {
+    cachedProfile = null;
+    return null;
+  }
+  cachedProfile = await res.json();
+  return cachedProfile;
+}
+
+async function updateAuthLinks() {
+  const authLinks = document.querySelectorAll('[data-auth-link]');
+  if (!authLinks.length) return;
+
+  const profile = await getProfile();
+  authLinks.forEach(link => {
+    if (profile) {
+      link.textContent = 'Profile';
+      link.href = '/admin/profile.html';
+    } else {
+      link.textContent = 'Login';
+      link.href = '/admin/login.html';
+    }
+  });
+}
+
+async function updateStaffLinks() {
+  const staffLinks = document.querySelectorAll('[data-staff-only]');
+  if (!staffLinks.length) return;
+
+  const profile = await getProfile();
+  if (!profile || profile.role !== 'staff') {
+    staffLinks.forEach(link => {
+      link.style.display = 'none';
+    });
+    return;
+  }
+
+  staffLinks.forEach(link => {
+    link.style.display = 'inline-flex';
+  });
+}
+
+updateAuthLinks();
+updateStaffLinks();

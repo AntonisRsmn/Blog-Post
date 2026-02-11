@@ -1,12 +1,10 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Rusman</title>
+  <title>No Access</title>
   <link rel="stylesheet" href="css/global.css" />
-  <link rel="stylesheet" href="css/home.css" />
 </head>
 <body>
 
@@ -15,7 +13,6 @@
     <a href="/" class="logo">Rusman</a>
     <nav>
       <a href="/" class="nav-link">Home</a>
-      <a href="/admin/dashboard.html" class="nav-link" data-staff-only>Dashboard</a>
       <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
       <button id="theme-toggle"></button>
     </nav>
@@ -23,8 +20,10 @@
 </header>
 
 <main>
-  <div id="home" class="home-grid">
-    <div class="loading">Loading articles...</div>
+  <div class="card" style="max-width: 520px; margin: 60px auto; text-align: center;">
+    <h1 style="margin-bottom: 12px;">Access denied</h1>
+    <p style="margin-bottom: 24px;">This account does not have permission to view the dashboard.</p>
+    <a href="/" class="footer-btn">Go back home</a>
   </div>
 </main>
 
@@ -40,7 +39,6 @@
 </footer>
 
 <script src="js/theme.js"></script>
-<script src="js/blog.js"></script>
 <script>
 function updateThemeLabel() {
   const label = document.getElementById('theme-label');
@@ -48,10 +46,6 @@ function updateThemeLabel() {
   label.textContent = mode === 'dark' ? 'Dark' : 'Light';
 }
 window.addEventListener('DOMContentLoaded', updateThemeLabel);
-window.addEventListener('storage', updateThemeLabel);
-document.addEventListener('click', function(e) {
-  if (e.target.id === 'theme-toggle') setTimeout(updateThemeLabel, 100);
-});
 </script>
 
 </body>

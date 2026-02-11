@@ -17,10 +17,11 @@
 
 <header>
   <div class="header-inner">
-    <a href="/" class="logo">My Blog</a>
+    <a href="/" class="logo">Rusman</a>
     <nav>
       <a href="/" class="nav-link">Home</a>
-      <a href="/admin/dashboard.html" class="nav-link">Dashboard</a>
+      <a href="/admin/dashboard.html" class="nav-link" data-staff-only>Dashboard</a>
+      <a href="/admin/profile.html" class="nav-link">Profile</a>
       <button id="theme-toggle"></button>
     </nav>
   </div>
@@ -29,6 +30,7 @@
 <main>
   <div class="admin-container">
     <h1 style="margin-bottom: 30px; color: var(--accent);">Admin Dashboard</h1>
+    <div id="status" class="admin-status" role="status" aria-live="polite"></div>
     
     <div class="admin-grid">
       <!-- Post Editor -->
@@ -67,7 +69,7 @@
 
 <footer>
   <div class="footer-inner">
-    <p class="footer-text">© 2026 · My Blog Admin</p>
+    <p class="footer-text">© 2026 · Rusman Admin</p>
     <div class="footer-links">
       <a href="/" class="footer-btn">View Blog</a>
       <a href="/admin/dashboard.html" class="footer-btn">Dashboard</a>
@@ -85,7 +87,50 @@ function updateThemeLabel() {
 }
 window.addEventListener('DOMContentLoaded', updateThemeLabel);
 
+async function ensureStaffAccess() {
+  const res = await fetch("/api/auth/profile");
+  if (!res.ok) {
+    window.location.href = "/admin/login.html";
+    return;
+  }
+
+  const profile = await res.json();
+  if (profile.role !== "staff") {
+    showStatus("This account does not have dashboard access.", "error");
+    const form = document.getElementById("postForm");
+    if (form) {
+      Array.from(form.elements).forEach(el => {
+        el.disabled = true;
+      });
+    }
+  }
+}
+
 let isEditing = false;
+const statusEl = document.getElementById("status");
+
+function showStatus(message, type) {
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.classList.remove("success", "error", "show");
+  if (type) statusEl.classList.add(type);
+  statusEl.classList.add("show");
+}
+
+function clearStatus() {
+  if (!statusEl) return;
+  statusEl.textContent = "";
+  statusEl.classList.remove("success", "error", "show");
+}
+
+function toSlug(value) {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N}\s-]/gu, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+}
 
 const editor = new EditorJS({
   holder: "editor",
@@ -164,24 +209,33 @@ async function editPost(slugValue) {
 
   await editor.render({ blocks: post.content });
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  clearStatus();
 }
 
 async function deletePost(id) {
-  if (!confirm("Are you sure you want to delete this post?")) return;
-
-  await fetch("/api/posts/" + id, { method: "DELETE" });
-  alert("Post deleted!");
+  const res = await fetch("/api/posts/" + id, { method: "DELETE" });
+  if (!res.ok) {
+    showStatus("Could not delete the post. Please try again.", "error");
+    return;
+  }
+  showStatus("Post deleted.", "success");
   loadPosts();
 }
 
 document.getElementById("postForm").addEventListener("submit", async e => {
   e.preventDefault();
+  clearStatus();
 
   const data = await editor.save();
 
+  const titleValue = document.getElementById("title").value;
+  const slugInput = document.getElementById("slug");
+  const slugValue = slugInput.value || toSlug(titleValue);
+  slugInput.value = slugValue;
+
   const post = {
-    title: document.getElementById("title").value,
-    slug: document.getElementById("slug").value,
+    title: titleValue,
+    slug: slugValue,
     excerpt: data.blocks[0]?.data?.text?.slice(0, 100) || "",
     content: data.blocks,
     published: true
@@ -199,14 +253,14 @@ document.getElementById("postForm").addEventListener("submit", async e => {
   });
 
   if (res.ok) {
-    alert("Post saved successfully!");
+    showStatus("Post saved successfully.", "success");
     document.getElementById("postForm").reset();
     document.getElementById("postId").value = "";
     editor.clear();
     isEditing = false;
     loadPosts();
   } else {
-    alert("❌ Error saving post. Try again.");
+    showStatus("Error saving post. Try again.", "error");
   }
 });
 
@@ -214,15 +268,12 @@ document.getElementById("postForm").addEventListener("submit", async e => {
 document.getElementById("title").addEventListener("input", () => {
   if (isEditing) return;
 
-  const slug = document.getElementById("title").value
-    .toLowerCase()
-    .trim()
-    .replace(/[^\w\s-]/g, "")
-    .replace(/\s+/g, "-");
+  const slug = toSlug(document.getElementById("title").value);
   document.getElementById("slug").value = slug;
 });
 
 loadPosts();
+ensureStaffAccess();
 </script>
 
 </body>

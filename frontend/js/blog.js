@@ -41,12 +41,14 @@ async function loadPosts() {
       day: 'numeric'
     });
 
+    const authorText = post.author ? `By ${post.author} • ` : "";
+
     card.innerHTML = `
       ${imageUrl ? `<img src="${imageUrl}" alt="${post.title}" class="post-card-image" onerror="console.log('Image failed to load:', '${imageUrl}')">` : '<div class="post-card-image" style="background: var(--bg-secondary);"></div>'}
       <div class="post-card-content">
         <h3 class="post-card-title">${post.title}</h3>
         <p class="post-card-excerpt">${post.excerpt || 'Read more...'}</p>
-        <span class="post-card-meta">${date}</span>
+        <span class="post-card-meta">${authorText}${date}</span>
       </div>
     `;
 
@@ -70,6 +72,7 @@ async function loadPost() {
   const post = await res.json();
   console.log("Full post:", post);
 
+  currentPostId = post._id;
   const heroImage = post.content?.find(b => b.type === "image");
   console.log("Hero image block:", heroImage);
 
@@ -109,20 +112,132 @@ async function loadPost() {
     day: 'numeric'
   });
 
+  const authorLine = post.author ? `<span>By ${post.author}</span>` : "";
+
   const heroUrl = heroImage?.data?.file?.url || 
                   heroImage?.data?.url || 
                   heroImage?.data?.file;
 
   container.innerHTML = `
-    ${heroUrl ? `<img src="${heroUrl}" alt="${post.title}" class="article-image">` : ""}
     <h1>${post.title}</h1>
+    ${heroUrl ? `<img src="${heroUrl}" alt="${post.title}" class="article-image">` : ""}
     <div class="article-meta">
+      ${authorLine}
       <span>${date}</span>
     </div>
     <div class="article-content">
       ${bodyHtml}
     </div>
   `;
+
+  await loadViewer();
+  loadComments(post._id);
+  setupCommentForm(post._id);
+}
+
+let currentUser = null;
+let currentPostId = null;
+
+async function loadViewer() {
+  const res = await fetch("/api/auth/profile");
+  if (!res.ok) {
+    currentUser = null;
+    return;
+  }
+
+  currentUser = await res.json();
+}
+
+async function loadComments(postId) {
+  const list = document.getElementById("commentList");
+  if (!list) return;
+
+  const res = await fetch(`/api/comments/${postId}`);
+  const comments = res.ok ? await res.json() : [];
+
+  list.innerHTML = "";
+  if (!comments.length) {
+    list.innerHTML = '<p class="comment-empty">Be the first to comment.</p>';
+    return;
+  }
+
+  comments.forEach(comment => {
+    const item = document.createElement("div");
+    item.className = "comment-item";
+    const date = new Date(comment.createdAt).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+
+    const canDelete = currentUser && (currentUser.role === "staff" || currentUser._id === comment.userId);
+    const deleteButton = canDelete
+      ? `<button class="comment-delete" onclick="deleteComment('${comment._id}')">Delete</button>`
+      : "";
+
+    item.innerHTML = `
+      <div class="comment-author">
+        ${comment.authorAvatar ? `<img src="${comment.authorAvatar}" alt="${comment.authorName}">` : ""}
+        <div>
+          <strong>${comment.authorName}</strong>
+          <span>${date}</span>
+        </div>
+        ${deleteButton}
+      </div>
+      <p>${comment.text}</p>
+    `;
+    list.appendChild(item);
+  });
+}
+
+async function deleteComment(commentId) {
+  const res = await fetch(`/api/comments/${commentId}`, {
+    method: "DELETE"
+  });
+
+  if (!res.ok) {
+    const status = document.getElementById("commentStatus");
+    if (status) status.textContent = "Could not delete comment.";
+    return;
+  }
+
+    if (!currentPostId) return;
+    loadComments(currentPostId);
+}
+
+function setupCommentForm(postId) {
+  const form = document.getElementById("commentForm");
+  const status = document.getElementById("commentStatus");
+  if (!form || !status) return;
+
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    status.textContent = "";
+
+    const textArea = document.getElementById("commentText");
+    const text = textArea.value.trim();
+    if (!text) return;
+
+    const res = await fetch(`/api/comments/${postId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text })
+    });
+
+    if (res.status === 401) {
+      status.textContent = "Please log in to comment.";
+      return;
+    }
+
+    if (!res.ok) {
+      status.textContent = "Could not post comment. Try again.";
+      return;
+    }
+
+    textArea.value = "";
+    status.textContent = "Comment posted.";
+    loadComments(postId);
+  }, { once: true });
 }
 
 // Load posts on page load

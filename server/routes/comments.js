@@ -1,0 +1,65 @@
+const express = require("express");
+const Comment = require("../models/Comment");
+const User = require("../models/User");
+const auth = require("../middleware/auth");
+
+const router = express.Router();
+
+router.get("/:postId", async (req, res) => {
+  const comments = await Comment.find({ postId: req.params.postId })
+    .sort({ createdAt: -1 })
+    .select("authorName authorAvatar text createdAt userId");
+
+  res.json(comments.map(comment => ({
+    _id: comment._id,
+    userId: comment.userId,
+    authorName: comment.authorName,
+    authorAvatar: comment.authorAvatar,
+    text: comment.text,
+    createdAt: comment.createdAt
+  })));
+});
+
+router.post("/:postId", auth, async (req, res) => {
+  const text = (req.body.text || "").trim();
+  if (!text) return res.status(400).json({ error: "Comment text is required" });
+
+  const user = await User.findById(req.user.userId).select("email username avatarUrl");
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const authorName = user.username || user.email;
+  const comment = await Comment.create({
+    postId: req.params.postId,
+    userId: user._id,
+    authorName,
+    authorAvatar: user.avatarUrl || "",
+    text
+  });
+
+  res.json({
+    _id: comment._id,
+    userId: comment.userId,
+    authorName: comment.authorName,
+    authorAvatar: comment.authorAvatar,
+    text: comment.text,
+    createdAt: comment.createdAt
+  });
+});
+
+router.delete("/:commentId", auth, async (req, res) => {
+  const comment = await Comment.findById(req.params.commentId);
+  if (!comment) return res.status(404).json({ error: "Not found" });
+
+  const user = await User.findById(req.user.userId).select("role");
+  const isOwner = comment.userId.toString() === req.user.userId;
+  const isStaff = user?.role === "staff";
+
+  if (!isOwner && !isStaff) {
+    return res.status(403).json({ error: "Forbidden" });
+  }
+
+  await Comment.findByIdAndDelete(req.params.commentId);
+  res.json({ success: true });
+});
+
+module.exports = router;

@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Profile</title>
+  <link rel="stylesheet" href="../css/global.css" />
+  <link rel="stylesheet" href="../css/admin.css" />
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <a href="/" class="logo">Rusman</a>
+    <nav>
+      <a href="/" class="nav-link">Home</a>
+      <a href="/admin/dashboard.html" class="nav-link" data-staff-only>Dashboard</a>
+      <a href="/admin/profile.html" class="nav-link">Profile</a>
+      <button id="theme-toggle"></button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="admin-container">
+    <h1 style="margin-bottom: 30px; color: var(--accent);">Profile</h1>
+    <div id="status" class="admin-status" role="status" aria-live="polite"></div>
+
+    <div class="profile-grid">
+      <div class="admin-section">
+        <h2>Account</h2>
+        <form id="profileForm">
+          <div class="profile-avatar">
+            <img id="avatarPreview" src="" alt="Profile avatar" />
+            <div>
+              <input type="file" id="avatar" accept="image/*" />
+              <input type="hidden" id="avatarUrl" />
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Email</label>
+            <input id="email" type="email" readonly disabled />
+          </div>
+
+          <div class="form-group">
+            <label>Username</label>
+            <input id="username" type="text" placeholder="Your name" />
+          </div>
+
+          <button type="submit">Save Profile</button>
+          <button type="button" id="logoutBtn" class="secondary" style="margin-left: 8px;">Log out</button>
+        </form>
+      </div>
+
+      <div class="admin-section">
+        <h2>Change Password</h2>
+        <form id="passwordForm">
+          <div class="form-group">
+            <label>Current Password</label>
+            <input id="currentPassword" type="password" autocomplete="current-password" required />
+          </div>
+          <div class="form-group">
+            <label>New Password</label>
+            <input id="newPassword" type="password" autocomplete="new-password" required />
+          </div>
+          <div class="form-group">
+            <label>Confirm New Password</label>
+            <input id="confirmPassword" type="password" autocomplete="new-password" required />
+          </div>
+          <button type="submit">Update Password</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="footer-inner">
+    <p class="footer-text">© 2026 · Rusman</p>
+    <div class="footer-links">
+      <a href="/" class="footer-btn">Home</a>
+      <a href="/admin/dashboard.html" class="footer-btn">Dashboard</a>
+    </div>
+    <p class="footer-text">Theme: <span id="theme-label">Light</span></p>
+  </div>
+</footer>
+
+<script src="../js/theme.js"></script>
+<script>
+function updateThemeLabel() {
+  const label = document.getElementById('theme-label');
+  const mode = document.documentElement.getAttribute('data-theme') || 'light';
+  label.textContent = mode === 'dark' ? 'Dark' : 'Light';
+}
+window.addEventListener('DOMContentLoaded', updateThemeLabel);
+
+const statusEl = document.getElementById("status");
+
+function showStatus(message, type) {
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.classList.remove("success", "error", "show");
+  if (type) statusEl.classList.add(type);
+  statusEl.classList.add("show");
+}
+
+function clearStatus() {
+  if (!statusEl) return;
+  statusEl.textContent = "";
+  statusEl.classList.remove("success", "error", "show");
+}
+
+async function loadProfile() {
+  const res = await fetch("/api/auth/profile");
+  if (!res.ok) {
+    showStatus("Please sign in again.", "error");
+    return;
+  }
+
+  const profile = await res.json();
+  document.getElementById("email").value = profile.email || "";
+  document.getElementById("username").value = profile.username || "";
+  document.getElementById("avatarUrl").value = profile.avatarUrl || "";
+
+  const avatarPreview = document.getElementById("avatarPreview");
+  avatarPreview.src = profile.avatarUrl || "https://via.placeholder.com/72";
+}
+
+async function uploadAvatar(file) {
+  const form = new FormData();
+  form.append("image", file);
+
+  const res = await fetch("/api/upload", {
+    method: "POST",
+    body: form
+  });
+
+  if (!res.ok) {
+    showStatus("Image upload failed.", "error");
+    return null;
+  }
+
+  const data = await res.json();
+  return data.url;
+}
+
+document.getElementById("avatar").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  clearStatus();
+  const url = await uploadAvatar(file);
+  if (!url) return;
+
+  document.getElementById("avatarUrl").value = url;
+  document.getElementById("avatarPreview").src = url;
+  showStatus("Avatar uploaded. Save profile to apply.", "success");
+});
+
+document.getElementById("profileForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  clearStatus();
+
+  const payload = {
+    username: document.getElementById("username").value,
+    avatarUrl: document.getElementById("avatarUrl").value
+  };
+
+  const res = await fetch("/api/auth/profile", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    showStatus("Profile update failed.", "error");
+    return;
+  }
+
+  showStatus("Profile updated.", "success");
+});
+
+document.getElementById("passwordForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  clearStatus();
+
+  const currentPassword = document.getElementById("currentPassword").value;
+  const newPassword = document.getElementById("newPassword").value;
+  const confirmPassword = document.getElementById("confirmPassword").value;
+
+  if (newPassword !== confirmPassword) {
+    showStatus("New passwords do not match.", "error");
+    return;
+  }
+
+  const res = await fetch("/api/auth/password", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ currentPassword, newPassword })
+  });
+
+  if (!res.ok) {
+    showStatus("Current password is incorrect.", "error");
+    return;
+  }
+
+  document.getElementById("currentPassword").value = "";
+  document.getElementById("newPassword").value = "";
+  document.getElementById("confirmPassword").value = "";
+  showStatus("Password updated.", "success");
+});
+
+document.getElementById("logoutBtn").addEventListener("click", async () => {
+  await fetch("/api/auth/logout", { method: "POST" });
+  window.location.href = "/admin/login.html";
+});
+
+loadProfile();
+</script>
+
+</body>
+</html>

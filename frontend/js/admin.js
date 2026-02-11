@@ -14,5 +14,5 @@ document.getElementById("loginForm")?.addEventListener("submit", async e => {
     return;
   }
 
-  alert("Logged in (token stored by server)");
+  window.location.href = "/admin/dashboard.html";
 });

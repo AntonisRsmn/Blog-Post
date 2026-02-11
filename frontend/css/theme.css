@@ -1,26 +1,26 @@
 /* Theme switcher styles and color variables */
 :root[data-theme="light"] {
-  --bg: #f7f8fa;
-  --panel: #fff;
-  --surface: #fff;
-  --text: #222;
-  --muted: #888;
-  --accent: #3b82f6;
-  --border: #e5e7eb;
+  --bg: #ffffff;
+  --panel: #ffffff;
+  --surface: #ffffff;
+  --text: #1f1b12;
+  --muted: #7a6a50;
+  --accent: #d4af37;
+  --border: #e6dbc3;
   --radius: 12px;
-  --card-shadow: 0 2px 8px rgba(30,40,80,0.08);
+  --card-shadow: 0 2px 8px rgba(17,12,4,0.08);
 }
 
 :root[data-theme="dark"] {
-  --bg: #181a20;
-  --panel: #23263a;
-  --surface: #23263a;
-  --text: #e7e9ee;
-  --muted: #9aa4b2;
-  --accent: #4f8cff;
-  --border: #23263a;
+  --bg: #0b0b0b;
+  --panel: #121212;
+  --surface: #121212;
+  --text: #f4ead2;
+  --muted: #a89264;
+  --accent: #d4af37;
+  --border: #2b2312;
   --radius: 12px;
-  --card-shadow: 0 2px 8px rgba(30,40,80,0.12);
+  --card-shadow: 0 2px 8px rgba(0,0,0,0.4);
 }
 
 #theme-toggle {
