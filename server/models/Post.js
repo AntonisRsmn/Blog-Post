@@ -5,6 +5,7 @@ const PostSchema = new mongoose.Schema(
     title: { type: String, required: true },
     author: { type: String, default: "" },
     authorId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    categories: { type: [String], default: [] },
     slug: { type: String, required: true, unique: true },
     excerpt: String,
     content: { type: Array, required: true },

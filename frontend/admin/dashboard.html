@@ -50,6 +50,11 @@
           </div>
 
           <div class="form-group">
+            <label>Categories</label>
+            <input id="categories" type="text" placeholder="e.g. Tech, Design">
+          </div>
+
+          <div class="form-group">
             <label>Content</label>
             <div id="editor"></div>
           </div>
@@ -69,7 +74,7 @@
 
 <footer>
   <div class="footer-inner">
-    <p class="footer-text">© 2026 · Rusman Admin</p>
+    <p class="footer-text">© 2026 · <a href="https://rusman.gr" target="_blank" rel="noopener">Antonios Rusman</a></p>
     <div class="footer-links">
       <a href="/" class="footer-btn">View Blog</a>
       <a href="/admin/dashboard.html" class="footer-btn">Dashboard</a>
@@ -206,6 +211,9 @@ async function editPost(slugValue) {
   document.getElementById("postId").value = post._id;
   document.getElementById("title").value = post.title;
   document.getElementById("slug").value = post.slug;
+  document.getElementById("categories").value = Array.isArray(post.categories)
+    ? post.categories.join(", ")
+    : "";
 
   await editor.render({ blocks: post.content });
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -236,6 +244,10 @@ document.getElementById("postForm").addEventListener("submit", async e => {
   const post = {
     title: titleValue,
     slug: slugValue,
+    categories: document.getElementById("categories").value
+      .split(",")
+      .map(value => value.trim())
+      .filter(Boolean),
     excerpt: data.blocks[0]?.data?.text?.slice(0, 100) || "",
     content: data.blocks,
     published: true

@@ -42,11 +42,15 @@ async function loadPosts() {
     });
 
     const authorText = post.author ? `By ${post.author} • ` : "";
+    const categoryText = Array.isArray(post.categories) && post.categories.length
+      ? post.categories.join(" · ")
+      : "";
 
     card.innerHTML = `
       ${imageUrl ? `<img src="${imageUrl}" alt="${post.title}" class="post-card-image" onerror="console.log('Image failed to load:', '${imageUrl}')">` : '<div class="post-card-image" style="background: var(--bg-secondary);"></div>'}
       <div class="post-card-content">
         <h3 class="post-card-title">${post.title}</h3>
+        ${categoryText ? `<div class="post-card-categories">${categoryText}</div>` : ""}
         <p class="post-card-excerpt">${post.excerpt || 'Read more...'}</p>
         <span class="post-card-meta">${authorText}${date}</span>
       </div>
@@ -113,6 +117,9 @@ async function loadPost() {
   });
 
   const authorLine = post.author ? `<span>By ${post.author}</span>` : "";
+  const categoryLine = Array.isArray(post.categories) && post.categories.length
+    ? `<span>${post.categories.join(" · ")}</span>`
+    : "";
 
   const heroUrl = heroImage?.data?.file?.url || 
                   heroImage?.data?.url || 
@@ -123,6 +130,7 @@ async function loadPost() {
     ${heroUrl ? `<img src="${heroUrl}" alt="${post.title}" class="article-image">` : ""}
     <div class="article-meta">
       ${authorLine}
+      ${categoryLine}
       <span>${date}</span>
     </div>
     <div class="article-content">

@@ -84,6 +84,14 @@
   line-height: 1.3;
 }
 
+.post-card-categories {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
 .post-card-excerpt {
   color: var(--text-secondary);
   font-size: 0.9rem;

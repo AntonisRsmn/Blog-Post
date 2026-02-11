@@ -31,6 +31,7 @@ article h1 {
   margin-bottom: 24px;
   color: var(--text-muted);
   font-size: 0.95rem;
+  flex-wrap: wrap;
 }
 
 .article-content {
