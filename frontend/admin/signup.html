@@ -42,6 +42,9 @@
             required
             autocomplete="new-password"
           />
+          <small style="display: block; margin-top: 4px; color: var(--text-muted); font-size: 0.85rem;">
+            Must be 8+ characters with letters, numbers, and symbols
+          </small>
         </div>
         <div class="form-group">
           <input
@@ -62,19 +65,62 @@
   </div>
 </main>
 
-<footer>
-  <div class="footer-inner">
-    <p class="footer-text">© 2026 · <a href="https://rusman.gr" target="_blank" rel="noopener">Antonios Rusman</a></p>
-    <div class="footer-links">
-      <a href="/" class="footer-btn">Home</a>
-      <a href="#" class="footer-btn">Support</a>
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div class="footer-left">
+      <div class="brand-small">
+        Antonios <span style="color:var(--accent)">Rusman</span>
+      </div>
+      <div class="muted small">© <span id="year"></span> Antonios Rusman — All rights reserved.</div>
     </div>
-    <p class="footer-text">Theme: <span id="theme-label">Light</span></p>
+
+    <div class="footer-center">
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <a href="/">Home</a>
+        <a href="/admin/dashboard.html" data-staff-only>Dashboard</a>
+        <a href="/admin/profile.html" data-auth-link>Profile</a>
+        <a href="/admin/login.html">Login</a>
+      </nav>
+    </div>
+
+    <div class="footer-right" aria-hidden="false">
+      <div class="social" role="list">
+        <a class="social-link" href="mailto:info@rusman.gr" aria-label="Email" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <path d="M3 6.5h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-11z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M21 6.5L12 13 3 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+
+        <a class="social-link" href="https://github.com/AntonisRsmn" target="_blank" rel="noopener" aria-label="GitHub" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <path d="M12 2C7.58 2 4 5.58 4 10c0 3.54 2.29 6.54 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.56 7.56 0 0 1 12 6.8c.68.003 1.36.092 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 20 10c0-4.42-3.58-8-8-8z" fill="currentColor"/>
+          </svg>
+        </a>
+
+        <a class="social-link" href="https://www.linkedin.com/in/antonis-rusman-a46424319/" target="_blank" rel="noopener" aria-label="LinkedIn" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M7.5 11.5v5M7.5 8.5v.01M12 16.5v-4c0-1 .6-1.5 1.4-1.5.8 0 1.6.5 1.6 1.6v3.9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+
+        <a class="social-link" href="https://instagram.com/_.rusman._" target="_blank" rel="noopener" aria-label="Instagram" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <rect x="3.5" y="3.5" width="17" height="17" rx="4" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="17.5" cy="6.5" r="0.6" fill="currentColor"/>
+          </svg>
+        </a>
+      </div>
+    </div>
   </div>
 </footer>
 
 <script src="../js/theme.js"></script>
 <script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
 function updateThemeLabel() {
   const label = document.getElementById('theme-label');
   const mode = document.documentElement.getAttribute('data-theme') || 'light';
@@ -92,6 +138,18 @@ document.getElementById("signupForm").addEventListener("submit", async e => {
   error.textContent = "";
   error.classList.remove("show");
 
+  // Validate password strength
+  const hasLetter = /[a-zA-Z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+  const isLongEnough = password.length >= 8;
+
+  if (!hasLetter || !hasNumber || !hasSymbol || !isLongEnough) {
+    error.textContent = "Password must be at least 8 characters and include letters, numbers, and symbols (e.g., !@#$%^&*).";
+    error.classList.add("show");
+    return;
+  }
+
   if (password !== confirm) {
     error.textContent = "Passwords do not match.";
     error.classList.add("show");
@@ -105,10 +163,14 @@ document.getElementById("signupForm").addEventListener("submit", async e => {
   });
 
   if (!res.ok) {
-    const message = res.status === 409
-      ? "Email already registered."
-      : "Sign up failed. Try again.";
-    error.textContent = message;
+    if (res.status === 409) {
+      error.innerHTML = 'This email is already registered. Please <a href="/admin/login.html" style="color: var(--accent); text-decoration: underline;">log in</a> instead.';
+    } else if (res.status === 400) {
+      const data = await res.json();
+      error.textContent = data.error || "Sign up failed. Try again.";
+    } else {
+      error.textContent = "Sign up failed. Try again.";
+    }
     error.classList.add("show");
     return;
   }

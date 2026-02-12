@@ -1,6 +1,13 @@
 // Theme switcher for blog
 const themeToggle = document.getElementById('theme-toggle');
 
+function logout() {
+  document.cookie = 'token=; Max-Age=0; path=/';
+  window.location.href = '/admin/login.html';
+}
+
+window.logout = logout;
+
 function setTheme(mode) {
   if (mode === 'dark') {
     document.documentElement.setAttribute('data-theme', 'dark');
@@ -62,17 +69,29 @@ async function updateStaffLinks() {
   if (!staffLinks.length) return;
 
   const profile = await getProfile();
-  if (!profile || profile.role !== 'staff') {
-    staffLinks.forEach(link => {
-      link.style.display = 'none';
-    });
-    return;
-  }
-
   staffLinks.forEach(link => {
-    link.style.display = 'inline-flex';
+    if (profile && profile.role === 'staff') {
+      link.style.display = '';
+    } else {
+      link.style.display = 'none';
+    }
+  });
+}
+
+async function updateGuestLinks() {
+  const guestLinks = document.querySelectorAll('[data-guest-only]');
+  if (!guestLinks.length) return;
+
+  const profile = await getProfile();
+  guestLinks.forEach(link => {
+    if (profile) {
+      link.style.display = 'none';
+    } else {
+      link.style.display = '';
+    }
   });
 }
 
 updateAuthLinks();
 updateStaffLinks();
+updateGuestLinks();

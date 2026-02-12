@@ -216,7 +216,25 @@ async function deleteComment(commentId) {
 function setupCommentForm(postId) {
   const form = document.getElementById("commentForm");
   const status = document.getElementById("commentStatus");
+  const loginPrompt = document.getElementById("commentLoginPrompt");
+  
   if (!form || !status) return;
+
+  // Check if user is logged in
+  if (!currentUser) {
+    // Hide the form and show login prompt
+    form.style.display = "none";
+    if (loginPrompt) {
+      loginPrompt.style.display = "block";
+    }
+    return;
+  }
+
+  // User is logged in, show the form
+  form.style.display = "block";
+  if (loginPrompt) {
+    loginPrompt.style.display = "none";
+  }
 
   form.addEventListener("submit", async e => {
     e.preventDefault();

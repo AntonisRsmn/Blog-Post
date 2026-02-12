@@ -26,9 +26,21 @@ router.post("/signup", async (req, res) => {
     return res.status(400).json({ error: "Email and password are required" });
   }
 
+  // Validate password strength
+  const hasLetter = /[a-zA-Z]/.test(password);
+  const hasNumber = /[0-9]/.test(password);
+  const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
+  const isLongEnough = password.length >= 8;
+
+  if (!hasLetter || !hasNumber || !hasSymbol || !isLongEnough) {
+    return res.status(400).json({ 
+      error: "Password must be at least 8 characters and include letters, numbers, and symbols" 
+    });
+  }
+
   const existing = await User.findOne({ email: email.toLowerCase().trim() });
   if (existing) {
-    return res.status(409).json({ error: "Email already registered" });
+    return res.status(409).json({ error: "This email is already registered. Please log in instead." });
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
