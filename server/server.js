@@ -8,6 +8,8 @@ const User = require("./models/User");
 
 const authRoutes = require("./routes/auth");
 const postRoutes = require("./routes/posts");
+const categoryRoutes = require("./routes/categories");
+const releaseRoutes = require("./routes/releases");
 const uploadRoutes = require("./routes/upload");
 const commentRoutes = require("./routes/comments");
 const auth = require("./middleware/auth");
@@ -21,6 +23,8 @@ app.use(cookieParser());
 // API routes
 app.use("/api/auth", authRoutes);
 app.use("/api/posts", postRoutes);
+app.use("/api/categories", categoryRoutes);
+app.use("/api/releases", releaseRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/comments", commentRoutes);
 

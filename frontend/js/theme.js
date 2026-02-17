@@ -1,5 +1,6 @@
 // Theme switcher for blog
 const themeToggle = document.getElementById('theme-toggle');
+const mobileThemeToggle = document.getElementById('mobile-theme-toggle');
 
 function logout() {
   document.cookie = 'token=; Max-Age=0; path=/';
@@ -18,16 +19,30 @@ function setTheme(mode) {
   updateThemeLabel();
 }
 
-themeToggle.onclick = function() {
+function toggleTheme() {
   const current = document.documentElement.getAttribute('data-theme');
   setTheme(current === 'dark' ? 'light' : 'dark');
-};
+}
+
+if (themeToggle) {
+  themeToggle.onclick = toggleTheme;
+}
+
+if (mobileThemeToggle) {
+  mobileThemeToggle.onclick = toggleTheme;
+}
 
 function updateThemeLabel() {
   const label = document.getElementById('theme-label');
+  const mobileSwitch = document.getElementById('mobile-theme-toggle');
+  const mode = document.documentElement.getAttribute('data-theme') || 'light';
+
   if (label) {
-    const mode = document.documentElement.getAttribute('data-theme') || 'light';
     label.textContent = mode === 'dark' ? 'Dark' : 'Light';
+  }
+
+  if (mobileSwitch) {
+    mobileSwitch.setAttribute('aria-label', mode === 'dark' ? 'Theme: Dark' : 'Theme: Light');
   }
 }
 

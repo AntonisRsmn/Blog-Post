@@ -13,6 +13,7 @@
 <header>
   <div class="header-inner">
     <a href="/" class="logo">Rusman</a>
+    <button type="button" id="mobile-menu-toggle" class="mobile-menu-toggle" aria-label="Open menu" aria-controls="mobile-sidebar" aria-expanded="false">☰</button>
     <nav>
       <a href="/" class="nav-link">Home</a>
       <a href="/admin/dashboard.html" class="nav-link" data-staff-only>Dashboard</a>
@@ -22,9 +23,83 @@
   </div>
 </header>
 
+<div id="mobile-sidebar-backdrop" class="mobile-sidebar-backdrop" hidden></div>
+<aside id="mobile-sidebar" class="mobile-sidebar" aria-label="Mobile navigation" aria-hidden="true">
+  <div class="mobile-sidebar-head">
+    <strong>Menu</strong>
+    <button type="button" id="mobile-sidebar-close" class="mobile-sidebar-close" aria-label="Close menu">✕</button>
+  </div>
+  <nav class="mobile-sidebar-nav">
+    <a href="/" class="nav-link">Home</a>
+    <a href="/admin/dashboard.html" class="nav-link" data-staff-only>Dashboard</a>
+    <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
+    <div class="mobile-theme-row">
+      <span>Theme</span>
+      <button type="button" id="mobile-theme-toggle" class="mobile-theme-switch" aria-label="Toggle theme"></button>
+    </div>
+  </nav>
+</aside>
+
+<div class="search-container">
+  <div class="search-bar">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" width="22" height="22">
+      <circle cx="10" cy="10" r="7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M15 15L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    <input type="text" id="search-input" placeholder="Search articles by title, category, or author..." />
+    <kbd class="search-hint">/</kbd>
+    <button id="clear-search" class="clear-btn" style="display: none;" aria-label="Clear search">
+      <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+        <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"/>
+      </svg>
+    </button>
+  </div>
+  <div class="mobile-panel-actions" aria-label="Mobile panel controls">
+    <button type="button" id="toggle-panels" class="mobile-panel-btn" aria-label="Toggle panels" aria-controls="home-filters release-calendar" aria-expanded="false">☰</button>
+  </div>
+  <div id="search-results" class="search-results"></div>
+</div>
+
 <main>
-  <div id="home" class="home-grid">
-    <div class="loading">Loading articles...</div>
+  <div class="home-layout">
+    <div class="home-content">
+      <div class="panel-stack" id="panel-stack">
+        <aside class="home-filters" id="home-filters">
+          <div class="filters-card">
+            <div class="filters-head">
+              <h3>Filters</h3>
+              <button type="button" id="clear-filters" class="clear-filters">Clear</button>
+            </div>
+            <div id="category-filters" class="category-filters">
+              <div class="loading">Loading categories...</div>
+            </div>
+          </div>
+        </aside>
+
+        <aside class="release-calendar" id="release-calendar" aria-label="Upcoming game and tech releases">
+          <div class="release-calendar-header">
+            <h3>Release Calendar</h3>
+            <div class="calendar-nav">
+              <button type="button" id="calendar-prev" aria-label="Previous month">‹</button>
+              <button type="button" id="calendar-next" aria-label="Next month">›</button>
+            </div>
+          </div>
+          <div id="calendar-month" class="calendar-month"></div>
+          <div class="calendar-weekdays">
+            <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+          </div>
+          <div id="calendar-days" class="calendar-days"></div>
+          <div class="release-list-wrap">
+            <div class="release-list-title">Upcoming</div>
+            <div id="release-list" class="release-list"></div>
+          </div>
+        </aside>
+      </div>
+
+      <div id="home" class="home-sections">
+        <div class="loading">Loading articles...</div>
+      </div>
+    </div>
   </div>
 </main>
 

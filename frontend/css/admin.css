@@ -1,36 +1,54 @@
 /* Admin panel styles */
 
 .admin-container {
-  max-width: 900px;
+  max-width: 1160px;
   margin: 0 auto;
-  padding: 32px 16px;
+  padding: 28px 16px 40px;
+}
+
+.admin-page-head {
+  margin-bottom: 18px;
+}
+
+.admin-title {
+  margin: 0;
+  color: var(--accent);
+  font-size: 1.6rem;
+}
+
+.admin-subtitle {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+  font-size: 0.92rem;
 }
 
 .admin-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 24px;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 18px;
+  align-items: start;
 }
 
 .admin-section {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 24px;
-  box-shadow: var(--shadow);
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: none;
 }
 
 .admin-section h2 {
-  margin-bottom: 20px;
+  margin-bottom: 14px;
   color: var(--text);
+  font-size: 1.08rem;
 }
 
 .admin-status {
   display: none;
-  margin-bottom: 16px;
-  padding: 12px 14px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
   border-radius: var(--radius);
-  font-size: 0.95rem;
+  font-size: 0.9rem;
 }
 
 .admin-status.show {
@@ -44,14 +62,14 @@
 }
 
 .admin-status.error {
-  background: #fee2e2;
-  border: 1px solid #fecaca;
-  color: #991b1b;
+  background: #2a1114;
+  border: 1px solid #b91c1c;
+  color: #fecaca;
 }
 
 /* Form spacing */
 .form-group {
-  margin-bottom: 16px;
+  margin-bottom: 12px;
 }
 
 .form-group label {
@@ -68,13 +86,160 @@
   width: 100%;
 }
 
+.category-controls {
+  display: grid;
+  gap: 8px;
+}
+
+.category-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+
+.selected-categories {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-height: 20px;
+}
+
+.category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-secondary);
+  color: var(--text);
+  font-size: 0.85rem;
+}
+
+.category-chip button {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  line-height: 1;
+  padding: 0;
+}
+
+.category-chip button:hover {
+  color: var(--accent);
+}
+
+.calendar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.calendar-toggle:hover {
+  border-color: var(--border-dark);
+  background: var(--bg-secondary);
+}
+
+.calendar-toggle input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.calendar-toggle-main {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.calendar-toggle-main strong {
+  font-size: 0.95rem;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.calendar-toggle-main small {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.calendar-toggle:has(input:focus-visible) {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-light);
+}
+
+.calendar-toggle-track {
+  display: inline-block;
+  width: 42px;
+  height: 24px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  position: relative;
+  flex-shrink: 0;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.calendar-toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  transition: transform 0.2s ease;
+}
+
+.calendar-toggle input:checked ~ .calendar-toggle-track {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.calendar-toggle input:checked ~ .calendar-toggle-track .calendar-toggle-thumb {
+  transform: translateX(18px);
+}
+
+.calendar-toggle:has(input:checked) {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.calendar-fields {
+  margin-top: -2px;
+  margin-bottom: 6px;
+  padding: 10px 12px 4px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  transition: opacity 0.2s ease;
+}
+
+.calendar-fields.is-disabled {
+  opacity: 0.5;
+}
+
+.admin-save-btn {
+  width: 100%;
+  padding: 11px 14px;
+  margin-top: 2px;
+}
+
 /* Editor.js styles */
 #editor {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px;
-  min-height: 300px;
+  min-height: 260px;
   margin: 12px 0;
 }
 
@@ -104,7 +269,7 @@
 }
 
 .post-item {
-  padding: 16px;
+  padding: 12px;
   border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
@@ -127,7 +292,7 @@
 }
 
 .post-item-actions button {
-  padding: 6px 12px;
+  padding: 6px 10px;
   font-size: 0.85rem;
 }
 
@@ -178,6 +343,21 @@
   font-size: 1rem;
 }
 
+.error {
+  display: none;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+  background: #2a1114;
+  border: 1px solid #b91c1c;
+  color: #fecaca;
+}
+
+.error.show {
+  display: block;
+}
+
 /* Profile page */
 .profile-grid {
   display: grid;
@@ -205,6 +385,14 @@
 @media (max-width: 768px) {
   .admin-grid {
     grid-template-columns: 1fr;
+  }
+
+  .admin-container {
+    padding-top: 20px;
+  }
+
+  .admin-section {
+    padding: 14px;
   }
 
   .profile-grid {

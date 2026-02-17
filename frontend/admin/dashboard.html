@@ -29,7 +29,10 @@
 
 <main>
   <div class="admin-container">
-    <h1 style="margin-bottom: 30px; color: var(--accent);">Admin Dashboard</h1>
+    <div class="admin-page-head">
+      <h1 class="admin-title">Admin Dashboard</h1>
+      <p class="admin-subtitle">Create, edit, and manage posts in one place.</p>
+    </div>
     <div id="status" class="admin-status" role="status" aria-live="polite"></div>
     
     <div class="admin-grid">
@@ -51,7 +54,43 @@
 
           <div class="form-group">
             <label>Categories</label>
-            <input id="categories" type="text" placeholder="e.g. Tech, Design">
+            <div class="category-controls">
+              <div class="category-row">
+                <select id="categorySelect">
+                  <option value="">Select category</option>
+                </select>
+              </div>
+              <div id="selectedCategories" class="selected-categories"></div>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="calendar-toggle" for="includeInCalendar">
+              <input id="includeInCalendar" type="checkbox">
+              <span class="calendar-toggle-main">
+                <strong>Add to calendar</strong>
+                <small>Show this post in Release Calendar</small>
+              </span>
+              <span class="calendar-toggle-track" aria-hidden="true">
+                <span class="calendar-toggle-thumb"></span>
+              </span>
+            </label>
+          </div>
+
+          <div id="calendarFields" class="calendar-fields is-disabled" aria-disabled="true">
+            <div class="form-group">
+              <label>Release Date (optional)</label>
+              <input id="releaseDate" type="date" disabled>
+            </div>
+
+            <div class="form-group">
+              <label>Release Type (optional)</label>
+              <select id="releaseType" disabled>
+                <option value="">Auto from title/categories</option>
+                <option value="Game">Game</option>
+                <option value="Tech">Tech</option>
+              </select>
+            </div>
           </div>
 
           <div class="form-group">
@@ -59,7 +98,7 @@
             <div id="editor"></div>
           </div>
 
-          <button type="submit" style="width: 100%; padding: 12px;">Save Post</button>
+          <button type="submit" class="admin-save-btn">Save Post</button>
         </form>
       </div>
 
@@ -154,6 +193,8 @@ async function ensureStaffAccess() {
 }
 
 let isEditing = false;
+let availableCategories = [];
+let selectedCategories = [];
 const statusEl = document.getElementById("status");
 
 function showStatus(message, type) {
@@ -177,6 +218,168 @@ function toSlug(value) {
     .replace(/[^\p{L}\p{N}\s-]/gu, "")
     .replace(/\s+/g, "-")
     .replace(/-+/g, "-");
+}
+
+function normalizeCategory(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function sortCategories(values) {
+  return [...new Set(values.map(normalizeCategory).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function renderCategoryOptions() {
+  const select = document.getElementById("categorySelect");
+  if (!select) return;
+
+  const candidates = availableCategories.filter(name => !selectedCategories.includes(name));
+  select.innerHTML = '<option value="">Select category</option>';
+
+  candidates.forEach(name => {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    select.appendChild(option);
+  });
+}
+
+function renderSelectedCategories() {
+  const container = document.getElementById("selectedCategories");
+  if (!container) return;
+
+  container.innerHTML = "";
+  selectedCategories.forEach(name => {
+    const chip = document.createElement("span");
+    chip.className = "category-chip";
+
+    const text = document.createElement("span");
+    text.textContent = name;
+
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.setAttribute("aria-label", `Remove ${name}`);
+    removeBtn.textContent = "×";
+    removeBtn.addEventListener("click", () => {
+      selectedCategories = selectedCategories.filter(category => category !== name);
+      renderSelectedCategories();
+      renderCategoryOptions();
+    });
+
+    chip.appendChild(text);
+    chip.appendChild(removeBtn);
+    container.appendChild(chip);
+  });
+}
+
+function setSelectedCategories(values) {
+  selectedCategories = sortCategories(values || []);
+  availableCategories = sortCategories([...availableCategories, ...selectedCategories]);
+  renderSelectedCategories();
+  renderCategoryOptions();
+}
+
+function addSelectedCategory(name) {
+  const normalized = normalizeCategory(name);
+  if (!normalized) return;
+
+  if (!selectedCategories.includes(normalized)) {
+    selectedCategories.push(normalized);
+    selectedCategories = sortCategories(selectedCategories);
+  }
+
+  if (!availableCategories.includes(normalized)) {
+    availableCategories.push(normalized);
+    availableCategories = sortCategories(availableCategories);
+  }
+
+  renderSelectedCategories();
+  renderCategoryOptions();
+}
+
+async function loadCategories() {
+  try {
+    const response = await fetch("/api/categories");
+    if (!response.ok) throw new Error("Could not load categories");
+    const categories = await response.json();
+    availableCategories = sortCategories(Array.isArray(categories) ? categories : []);
+  } catch {
+    availableCategories = [];
+  }
+
+  renderCategoryOptions();
+}
+
+function collectTextValues(value, result) {
+  if (typeof value === "string") {
+    result.push(value.replace(/<[^>]*>/g, " "));
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach(item => collectTextValues(item, result));
+    return;
+  }
+
+  if (value && typeof value === "object") {
+    Object.values(value).forEach(item => collectTextValues(item, result));
+  }
+}
+
+function parseDateFromText(text) {
+  const monthPattern = /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?(?:,)?\s+20\d{2}\b/i;
+  const dayMonthPattern = /\b\d{1,2}(?:st|nd|rd|th)?\s+(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+20\d{2}\b/i;
+  const isoPattern = /\b20\d{2}[-\/.](0?[1-9]|1[0-2])[-\/.](0?[1-9]|[12]\d|3[01])\b/;
+  const dmyPattern = /\b(0?[1-9]|[12]\d|3[01])[\/.-](0?[1-9]|1[0-2])[\/.-](20\d{2})\b/;
+
+  const monthMatch = text.match(monthPattern);
+  if (monthMatch) {
+    const cleaned = monthMatch[0].replace(/(st|nd|rd|th)/gi, "").trim();
+    const parsed = new Date(cleaned);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  }
+
+  const dayMonthMatch = text.match(dayMonthPattern);
+  if (dayMonthMatch) {
+    const cleaned = dayMonthMatch[0].replace(/(st|nd|rd|th)/gi, "").trim();
+    const parsed = new Date(cleaned);
+    if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  }
+
+  const isoMatch = text.match(isoPattern);
+  if (isoMatch) {
+    return isoMatch[0].replace(/[/.]/g, "-");
+  }
+
+  const dmyMatch = text.match(dmyPattern);
+  if (dmyMatch) {
+    const [day, month, year] = dmyMatch[0].split(/[\/.-]/);
+    return `${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  }
+
+  return "";
+}
+
+function inferReleaseDateFromBlocks(blocks) {
+  const values = [];
+  collectTextValues(blocks, values);
+  return parseDateFromText(values.join(" "));
+}
+
+function updateCalendarUx() {
+  const toggle = document.getElementById("includeInCalendar");
+  const fields = document.getElementById("calendarFields");
+  const releaseDate = document.getElementById("releaseDate");
+  const releaseType = document.getElementById("releaseType");
+  const enabled = !!toggle?.checked;
+
+  if (fields) {
+    fields.classList.toggle("is-disabled", !enabled);
+    fields.setAttribute("aria-disabled", String(!enabled));
+  }
+
+  if (releaseDate) releaseDate.disabled = !enabled;
+  if (releaseType) releaseType.disabled = !enabled;
 }
 
 const editor = new EditorJS({
@@ -253,9 +456,13 @@ async function editPost(slugValue) {
   document.getElementById("postId").value = post._id;
   document.getElementById("title").value = post.title;
   document.getElementById("slug").value = post.slug;
-  document.getElementById("categories").value = Array.isArray(post.categories)
-    ? post.categories.join(", ")
+  setSelectedCategories(Array.isArray(post.categories) ? post.categories : []);
+  document.getElementById("releaseDate").value = post.releaseDate
+    ? new Date(post.releaseDate).toISOString().slice(0, 10)
     : "";
+  document.getElementById("releaseType").value = post.releaseType || "";
+  document.getElementById("includeInCalendar").checked = !!post.includeInCalendar;
+  updateCalendarUx();
 
   await editor.render({ blocks: post.content });
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -268,7 +475,7 @@ async function deletePost(id) {
     showStatus("Could not delete the post. Please try again.", "error");
     return;
   }
-  showStatus("Post deleted.", "success");
+  showStatus("Post deleted.", "error");
   loadPosts();
 }
 
@@ -280,16 +487,27 @@ document.getElementById("postForm").addEventListener("submit", async e => {
 
   const titleValue = document.getElementById("title").value;
   const slugInput = document.getElementById("slug");
+  const includeInCalendar = document.getElementById("includeInCalendar").checked;
+  const releaseDateInput = document.getElementById("releaseDate");
   const slugValue = slugInput.value || toSlug(titleValue);
   slugInput.value = slugValue;
+
+  let releaseDateValue = releaseDateInput.value || null;
+  if (includeInCalendar && !releaseDateValue) {
+    const inferredDate = inferReleaseDateFromBlocks(data.blocks);
+    if (inferredDate) {
+      releaseDateValue = inferredDate;
+      releaseDateInput.value = inferredDate;
+    }
+  }
 
   const post = {
     title: titleValue,
     slug: slugValue,
-    categories: document.getElementById("categories").value
-      .split(",")
-      .map(value => value.trim())
-      .filter(Boolean),
+    categories: selectedCategories,
+    releaseDate: releaseDateValue,
+    releaseType: document.getElementById("releaseType").value || "",
+    includeInCalendar,
     excerpt: data.blocks[0]?.data?.text?.slice(0, 100) || "",
     content: data.blocks,
     published: true
@@ -308,8 +526,12 @@ document.getElementById("postForm").addEventListener("submit", async e => {
 
   if (res.ok) {
     showStatus("Post saved successfully.", "success");
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     document.getElementById("postForm").reset();
     document.getElementById("postId").value = "";
+    document.getElementById("includeInCalendar").checked = false;
+    setSelectedCategories([]);
+    updateCalendarUx();
     editor.clear();
     isEditing = false;
     loadPosts();
@@ -326,8 +548,20 @@ document.getElementById("title").addEventListener("input", () => {
   document.getElementById("slug").value = slug;
 });
 
+document.getElementById("includeInCalendar").addEventListener("change", updateCalendarUx);
+
+document.getElementById("categorySelect").addEventListener("change", () => {
+  const select = document.getElementById("categorySelect");
+  const value = normalizeCategory(select?.value);
+  if (!value) return;
+  addSelectedCategory(value);
+  if (select) select.value = "";
+});
+
+loadCategories();
 loadPosts();
 ensureStaffAccess();
+updateCalendarUx();
 </script>
 
 </body>
