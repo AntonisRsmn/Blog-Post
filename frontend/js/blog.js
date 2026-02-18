@@ -86,6 +86,37 @@ function createShowMoreButton(onClick) {
   return wrap;
 }
 
+function createLatestPaginationControls(totalCount) {
+  const wrap = document.createElement("div");
+  wrap.className = "show-more-wrap";
+
+  if (latestVisibleCount < totalCount) {
+    const showMoreButton = document.createElement("button");
+    showMoreButton.type = "button";
+    showMoreButton.className = "show-more-btn";
+    showMoreButton.textContent = "Show more";
+    showMoreButton.addEventListener("click", () => {
+      latestVisibleCount += POSTS_PAGE_SIZE;
+      renderHomeSections();
+    });
+    wrap.appendChild(showMoreButton);
+  }
+
+  if (latestVisibleCount > POSTS_PAGE_SIZE) {
+    const showLessButton = document.createElement("button");
+    showLessButton.type = "button";
+    showLessButton.className = "show-more-btn show-less-btn";
+    showLessButton.textContent = "Show less";
+    showLessButton.addEventListener("click", () => {
+      latestVisibleCount = POSTS_PAGE_SIZE;
+      renderHomeSections();
+    });
+    wrap.appendChild(showLessButton);
+  }
+
+  return wrap.childElementCount ? wrap : null;
+}
+
 function getAllCategories(posts) {
   const unique = new Set();
   posts.forEach(post => {
@@ -217,11 +248,9 @@ function renderHomeSections() {
   latestSection.appendChild(latestHead);
   latestSection.appendChild(latestGrid);
 
-  if (latestVisibleCount < latestSorted.length) {
-    latestSection.appendChild(createShowMoreButton(() => {
-      latestVisibleCount += POSTS_PAGE_SIZE;
-      renderHomeSections();
-    }));
+  const latestControls = createLatestPaginationControls(latestSorted.length);
+  if (latestControls) {
+    latestSection.appendChild(latestControls);
   }
 
   container.appendChild(latestSection);
@@ -576,7 +605,8 @@ async function loadReleaseEvents() {
       .map(item => ({
         date: item.date,
         title: item.title,
-        type: item.type === "Game" ? "Game" : "Tech"
+        type: item.type === "Game" ? "Game" : "Tech",
+        slug: item.slug || ""
       }));
   } catch {
     releaseEvents = [];
@@ -648,6 +678,22 @@ function renderReleaseCalendar() {
       <div class="release-item-name">${event.title}</div>
       <div class="release-item-meta">${event.type} • ${formatReleaseDate(event.date)}</div>
     `;
+
+    if (event.slug) {
+      item.style.cursor = "pointer";
+      item.setAttribute("role", "link");
+      item.tabIndex = 0;
+      item.addEventListener("click", () => {
+        window.location.href = `post.html?slug=${encodeURIComponent(event.slug)}`;
+      });
+      item.addEventListener("keydown", e => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          window.location.href = `post.html?slug=${encodeURIComponent(event.slug)}`;
+        }
+      });
+    }
+
     releaseList.appendChild(item);
   });
 }
@@ -681,79 +727,35 @@ async function initializeReleaseCalendar() {
 function initializeMobilePanelToggles() {
   const filtersPanel = document.getElementById("home-filters");
   const calendarPanel = document.getElementById("release-calendar");
-  const panelsButton = document.getElementById("toggle-panels");
-  if (!filtersPanel || !calendarPanel || !panelsButton) return;
+  const filtersButton = document.getElementById("toggle-filters");
+  const calendarButton = document.getElementById("toggle-calendar");
+  if (!filtersPanel || !calendarPanel || !filtersButton || !calendarButton) return;
 
   const mobileQuery = window.matchMedia("(max-width: 1510px)");
 
-  const setExpanded = expanded => {
-    panelsButton.setAttribute("aria-expanded", String(expanded));
+  const setExpanded = (button, expanded) => {
+    button.setAttribute("aria-expanded", String(expanded));
   };
 
   const closeAllPanels = () => {
     filtersPanel.classList.remove("is-open");
     calendarPanel.classList.remove("is-open");
-    setExpanded(false);
+    setExpanded(filtersButton, false);
+    setExpanded(calendarButton, false);
   };
 
-  const togglePanels = () => {
+  const togglePanel = (panel, button) => {
     if (!mobileQuery.matches) return;
-
-    const willOpen = !filtersPanel.classList.contains("is-open") || !calendarPanel.classList.contains("is-open");
-
-    closeAllPanels();
-
-    if (willOpen) {
-      filtersPanel.classList.add("is-open");
-      calendarPanel.classList.add("is-open");
-      setExpanded(true);
-    }
+    const willOpen = !panel.classList.contains("is-open");
+    panel.classList.toggle("is-open", willOpen);
+    setExpanded(button, willOpen);
   };
 
-  panelsButton.addEventListener("click", togglePanels);
+  filtersButton.addEventListener("click", () => togglePanel(filtersPanel, filtersButton));
+  calendarButton.addEventListener("click", () => togglePanel(calendarPanel, calendarButton));
   mobileQuery.addEventListener("change", closeAllPanels);
 
   closeAllPanels();
-}
-
-function initializeMobileSidebar() {
-  const sidebar = document.getElementById("mobile-sidebar");
-  const backdrop = document.getElementById("mobile-sidebar-backdrop");
-  const openButton = document.getElementById("mobile-menu-toggle");
-  const closeButton = document.getElementById("mobile-sidebar-close");
-  if (!sidebar || !backdrop || !openButton || !closeButton) return;
-
-  const mobileQuery = window.matchMedia("(max-width: 768px)");
-
-  const closeSidebar = () => {
-    sidebar.classList.remove("is-open");
-    backdrop.classList.remove("is-open");
-    backdrop.hidden = true;
-    openButton.setAttribute("aria-expanded", "false");
-    sidebar.setAttribute("aria-hidden", "true");
-  };
-
-  const openSidebar = () => {
-    if (!mobileQuery.matches) return;
-    sidebar.classList.add("is-open");
-    backdrop.hidden = false;
-    backdrop.classList.add("is-open");
-    openButton.setAttribute("aria-expanded", "true");
-    sidebar.setAttribute("aria-hidden", "false");
-  };
-
-  openButton.addEventListener("click", () => {
-    if (sidebar.classList.contains("is-open")) {
-      closeSidebar();
-    } else {
-      openSidebar();
-    }
-  });
-
-  closeButton.addEventListener("click", closeSidebar);
-  backdrop.addEventListener("click", closeSidebar);
-  sidebar.querySelectorAll("a").forEach(link => link.addEventListener("click", closeSidebar));
-  mobileQuery.addEventListener("change", closeSidebar);
 }
 
 function filterPosts(query) {
@@ -837,7 +839,6 @@ if (document.readyState === 'loading') {
     initializeSearch();
     initializeReleaseCalendar();
     initializeMobilePanelToggles();
-    initializeMobileSidebar();
   });
 } else {
   loadPosts();
@@ -845,5 +846,4 @@ if (document.readyState === 'loading') {
   initializeSearch();
   initializeReleaseCalendar();
   initializeMobilePanelToggles();
-  initializeMobileSidebar();
 }

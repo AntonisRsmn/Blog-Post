@@ -55,7 +55,12 @@
     </button>
   </div>
   <div class="mobile-panel-actions" aria-label="Mobile panel controls">
-    <button type="button" id="toggle-panels" class="mobile-panel-btn" aria-label="Toggle panels" aria-controls="home-filters release-calendar" aria-expanded="false">☰</button>
+    <button type="button" id="toggle-filters" class="mobile-panel-btn" aria-label="Toggle filters" aria-controls="home-filters" aria-expanded="false">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+        <path d="M4 6h16M7 12h10M10 18h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      </svg>
+    </button>
+    <button type="button" id="toggle-calendar" class="mobile-panel-btn" aria-label="Toggle calendar" aria-controls="release-calendar" aria-expanded="false">🗓</button>
   </div>
   <div id="search-results" class="search-results"></div>
 </div>
@@ -160,7 +165,9 @@
 function updateThemeLabel() {
   const label = document.getElementById('theme-label');
   const mode = document.documentElement.getAttribute('data-theme') || 'light';
-  label.textContent = mode === 'dark' ? 'Dark' : 'Light';
+  if (label) {
+    label.textContent = mode === 'dark' ? 'Dark' : 'Light';
+  }
 }
 window.addEventListener('DOMContentLoaded', updateThemeLabel);
 window.addEventListener('storage', updateThemeLabel);

@@ -115,12 +115,16 @@ article h1 {
 .comment-form {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   margin-bottom: 16px;
 }
 
 .comment-form textarea {
   min-height: 110px;
+}
+
+.comment-form button {
+  margin-top: 8px;
 }
 
 .comment-status {

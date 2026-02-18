@@ -6,6 +6,30 @@
   <title>Admin Dashboard</title>
   <link rel="stylesheet" href="../css/global.css" />
   <link rel="stylesheet" href="../css/admin.css" />
+  <style>
+    @media (max-width: 768px) {
+      .mobile-sidebar {
+        top: 0;
+        bottom: 0;
+        right: 0;
+        width: min(84vw, 300px);
+        max-width: min(84vw, 300px);
+        border-left: 1px solid var(--border);
+        z-index: 2000;
+      }
+
+      .mobile-theme-row {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        column-gap: 10px;
+        align-items: center;
+      }
+
+      .mobile-theme-switch {
+        justify-self: end;
+      }
+    }
+  </style>
 
   <!-- Editor.js -->
   <script src="https://cdn.jsdelivr.net/npm/@editorjs/editorjs@latest"></script>
@@ -18,6 +42,7 @@
 <header>
   <div class="header-inner">
     <a href="/" class="logo">Rusman</a>
+    <button type="button" id="mobile-menu-toggle" class="mobile-menu-toggle" aria-label="Open menu" aria-controls="mobile-sidebar" aria-expanded="false">☰</button>
     <nav>
       <a href="/" class="nav-link">Home</a>
       <a href="/admin/dashboard.html" class="nav-link" data-staff-only>Dashboard</a>
@@ -26,6 +51,23 @@
     </nav>
   </div>
 </header>
+
+<div id="mobile-sidebar-backdrop" class="mobile-sidebar-backdrop" hidden></div>
+<aside id="mobile-sidebar" class="mobile-sidebar" aria-label="Mobile navigation" aria-hidden="true">
+  <div class="mobile-sidebar-head">
+    <strong>Menu</strong>
+    <button type="button" id="mobile-sidebar-close" class="mobile-sidebar-close" aria-label="Close menu">✕</button>
+  </div>
+  <nav class="mobile-sidebar-nav">
+    <a href="/" class="nav-link">Home</a>
+    <a href="/admin/dashboard.html" class="nav-link" data-staff-only>Dashboard</a>
+    <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
+    <div class="mobile-theme-row">
+      <span>Theme</span>
+      <button type="button" id="mobile-theme-toggle" class="mobile-theme-switch" aria-label="Toggle theme"></button>
+    </div>
+  </nav>
+</aside>
 
 <main>
   <div class="admin-container">
@@ -65,47 +107,54 @@
           </div>
 
           <div class="form-group">
-            <label class="calendar-toggle" for="includeInCalendar">
-              <input id="includeInCalendar" type="checkbox">
-              <span class="calendar-toggle-main">
-                <strong>Add to calendar</strong>
-                <small>Show this post in Release Calendar</small>
-              </span>
-              <span class="calendar-toggle-track" aria-hidden="true">
-                <span class="calendar-toggle-thumb"></span>
-              </span>
-            </label>
-          </div>
-
-          <div id="calendarFields" class="calendar-fields is-disabled" aria-disabled="true">
-            <div class="form-group">
-              <label>Release Date (optional)</label>
-              <input id="releaseDate" type="date" disabled>
-            </div>
-
-            <div class="form-group">
-              <label>Release Type (optional)</label>
-              <select id="releaseType" disabled>
-                <option value="">Auto from title/categories</option>
-                <option value="Game">Game</option>
-                <option value="Tech">Tech</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-group">
             <label>Content</label>
             <div id="editor"></div>
           </div>
 
-          <button type="submit" class="admin-save-btn">Save Post</button>
+          <div class="post-form-actions">
+            <button type="submit" id="save-post-btn" class="admin-save-btn">Save Post</button>
+            <button type="button" id="cancel-post-edit-btn" class="secondary" style="display:none;">Cancel Edit</button>
+          </div>
         </form>
       </div>
 
-      <!-- Posts List -->
-      <div class="admin-section">
-        <h2>Published Posts</h2>
-        <ul id="posts" class="posts-list"></ul>
+      <!-- Posts and Calendar -->
+      <div class="admin-side-grid">
+        <div class="admin-section">
+          <h2>Published Posts</h2>
+          <div class="posts-search-wrap">
+            <input id="posts-search" type="text" placeholder="Search by title or slug..." aria-label="Search published posts">
+          </div>
+          <ul id="posts" class="posts-list"></ul>
+        </div>
+
+        <div class="admin-section">
+          <h2>Calendar Events</h2>
+          <p class="release-manager-hint">Select a post and date, then publish it to the calendar.</p>
+
+          <div class="form-group">
+            <label for="release-post-select">Post</label>
+            <select id="release-post-select">
+              <option value="">Select post</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label for="release-date">Release Date</label>
+            <input id="release-date" type="date" />
+          </div>
+
+          <div class="release-manager-actions">
+            <button type="button" id="save-release-btn">Publish Event</button>
+            <button type="button" id="cancel-release-edit-btn" class="secondary" style="display:none;">Cancel Edit</button>
+          </div>
+
+          <div class="release-event-filters">
+            <input id="release-event-search" type="text" placeholder="Search events by title or slug..." aria-label="Search calendar events">
+          </div>
+
+          <ul id="release-events" class="posts-list"></ul>
+        </div>
       </div>
     </div>
   </div>
@@ -123,8 +172,8 @@
     <div class="footer-center">
       <nav class="footer-nav" aria-label="Footer navigation">
         <a href="/">Home</a>
-        <a href="/admin/dashboard.html">Dashboard</a>
-        <a href="/admin/profile.html">Profile</a>
+        <a href="/admin/dashboard.html" data-staff-only>Dashboard</a>
+        <a href="/admin/profile.html" data-auth-link>Profile</a>
       </nav>
     </div>
 
@@ -195,6 +244,8 @@ async function ensureStaffAccess() {
 let isEditing = false;
 let availableCategories = [];
 let selectedCategories = [];
+let allDashboardPosts = [];
+let releaseEditPostId = null;
 const statusEl = document.getElementById("status");
 
 function showStatus(message, type) {
@@ -425,15 +476,46 @@ async function loadPosts() {
   const res = await fetch("/api/posts");
   const posts = await res.json();
 
+  allDashboardPosts = Array.isArray(posts) ? posts : [];
+  renderPostsList();
+  renderReleasePostOptions();
+  renderReleaseEventsList();
+}
+
+function normalizePostsSearch(value) {
+  return String(value || "").toLowerCase().trim();
+}
+
+function getFilteredPosts() {
+  const input = document.getElementById("posts-search");
+  const query = normalizePostsSearch(input?.value);
+  if (!query) return allDashboardPosts;
+
+  return allDashboardPosts.filter(post => {
+    const title = normalizePostsSearch(post.title);
+    const slug = normalizePostsSearch(post.slug);
+    return title.includes(query) || slug.includes(query);
+  });
+}
+
+function renderPostsList() {
   const list = document.getElementById("posts");
+  if (!list) return;
   list.innerHTML = "";
 
-  if (!posts.length) {
+  const filteredPosts = getFilteredPosts();
+
+  if (!allDashboardPosts.length) {
     list.innerHTML = '<li style="padding: 16px; text-align: center; color: var(--text-muted);">No posts yet</li>';
     return;
   }
 
-  posts.forEach(p => {
+  if (!filteredPosts.length) {
+    list.innerHTML = '<li style="padding: 16px; text-align: center; color: var(--text-muted);">No posts match your search</li>';
+    return;
+  }
+
+  filteredPosts.forEach(p => {
     const li = document.createElement("li");
     li.className = "post-item";
     li.innerHTML = `
@@ -447,6 +529,248 @@ async function loadPosts() {
   });
 }
 
+function renderReleasePostOptions() {
+  const select = document.getElementById("release-post-select");
+  if (!select) return;
+
+  const previousValue = select.value;
+
+  select.innerHTML = '<option value="">Select post</option>';
+
+  allDashboardPosts.forEach(post => {
+    const option = document.createElement("option");
+    option.value = String(post._id);
+    option.textContent = `${post.title} (${post.slug})`;
+    option.dataset.title = normalizePostsSearch(post.title);
+    option.dataset.slug = normalizePostsSearch(post.slug);
+    option.dataset.search = normalizePostsSearch(`${post.title} ${post.slug}`);
+    select.appendChild(option);
+  });
+
+  if (releaseEditPostId && allDashboardPosts.some(post => String(post._id) === releaseEditPostId)) {
+    select.value = releaseEditPostId;
+    return;
+  }
+
+  if (previousValue && allDashboardPosts.some(post => String(post._id) === previousValue)) {
+    select.value = previousValue;
+  }
+}
+
+let releasePostTypeBuffer = "";
+let releasePostTypeTimer = null;
+
+function resetReleasePostTypeBuffer() {
+  releasePostTypeBuffer = "";
+  if (releasePostTypeTimer) {
+    clearTimeout(releasePostTypeTimer);
+    releasePostTypeTimer = null;
+  }
+}
+
+function findReleasePostOptionByQuery(select, query) {
+  const normalizedQuery = normalizePostsSearch(query);
+  if (!normalizedQuery) return null;
+
+  const options = Array.from(select.options).slice(1);
+  const byTitlePrefix = options.find(option => (option.dataset.title || "").startsWith(normalizedQuery));
+  if (byTitlePrefix) return byTitlePrefix;
+
+  const bySlugPrefix = options.find(option => (option.dataset.slug || "").startsWith(normalizedQuery));
+  if (bySlugPrefix) return bySlugPrefix;
+
+  const startsWithMatch = options.find(option => {
+    const searchText = option.dataset.search || normalizePostsSearch(option.textContent || "");
+    return searchText.startsWith(normalizedQuery);
+  });
+  if (startsWithMatch) return startsWithMatch;
+
+  return options.find(option => {
+    const searchText = option.dataset.search || normalizePostsSearch(option.textContent || "");
+    return searchText.includes(normalizedQuery);
+  }) || null;
+}
+
+function initializeReleasePostTypeahead() {
+  const select = document.getElementById("release-post-select");
+  if (!select) return;
+  if (select.dataset.typeaheadBound === "true") return;
+  select.dataset.typeaheadBound = "true";
+
+  select.addEventListener("focus", resetReleasePostTypeBuffer);
+  select.addEventListener("blur", resetReleasePostTypeBuffer);
+
+  select.addEventListener("keydown", event => {
+    if (event.ctrlKey || event.metaKey || event.altKey) return;
+
+    if (event.key === "Backspace") {
+      releasePostTypeBuffer = releasePostTypeBuffer.slice(0, -1);
+    } else if (event.key.length === 1) {
+      releasePostTypeBuffer += event.key.toLowerCase();
+    } else {
+      return;
+    }
+
+    if (releasePostTypeTimer) {
+      clearTimeout(releasePostTypeTimer);
+    }
+    releasePostTypeTimer = setTimeout(() => {
+      resetReleasePostTypeBuffer();
+    }, 1200);
+
+    const match = findReleasePostOptionByQuery(select, releasePostTypeBuffer);
+
+    if (match) {
+      select.value = match.value;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      event.preventDefault();
+    }
+  });
+}
+
+function formatCalendarDate(value) {
+  if (!value) return "No date";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "No date";
+  return date.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+}
+
+function renderReleaseEventsList() {
+  const list = document.getElementById("release-events");
+  const searchInput = document.getElementById("release-event-search");
+  if (!list) return;
+
+  const eventQuery = normalizePostsSearch(searchInput?.value);
+
+  const events = allDashboardPosts
+    .filter(post => !!post.includeInCalendar || !!post.releaseDate)
+    .filter(post => {
+      const title = normalizePostsSearch(post.title);
+      const slug = normalizePostsSearch(post.slug);
+      return !eventQuery || title.includes(eventQuery) || slug.includes(eventQuery);
+    })
+    .sort((a, b) => new Date(a.releaseDate || a.createdAt) - new Date(b.releaseDate || b.createdAt));
+
+  list.innerHTML = "";
+
+  if (!events.length) {
+    list.innerHTML = '<li style="padding: 16px; text-align: center; color: var(--text-muted);">No calendar events yet</li>';
+    return;
+  }
+
+  events.forEach(post => {
+    const li = document.createElement("li");
+    li.className = "post-item";
+    li.innerHTML = `
+      <div class="release-event-main">
+        <a class="post-item-title" href="/post.html?slug=${post.slug}" target="_blank" rel="noopener">${post.title}</a>
+        <span class="release-event-date">${formatCalendarDate(post.releaseDate)}</span>
+      </div>
+      <div class="post-item-actions">
+        <button class="secondary" onclick="editReleaseEvent('${post._id}')">Edit</button>
+        <button class="danger" onclick="deleteReleaseEvent('${post._id}')">Delete</button>
+      </div>
+    `;
+    list.appendChild(li);
+  });
+}
+
+function resetReleaseForm() {
+  releaseEditPostId = null;
+  const postSelect = document.getElementById("release-post-select");
+  const dateInput = document.getElementById("release-date");
+  const saveButton = document.getElementById("save-release-btn");
+  const cancelButton = document.getElementById("cancel-release-edit-btn");
+
+  if (postSelect) postSelect.value = "";
+  if (dateInput) dateInput.value = "";
+  if (saveButton) saveButton.textContent = "Publish Event";
+  if (cancelButton) cancelButton.style.display = "none";
+}
+
+window.editReleaseEvent = function editReleaseEvent(postId) {
+  const post = allDashboardPosts.find(item => String(item._id) === String(postId));
+  if (!post) return;
+
+  releaseEditPostId = String(post._id);
+  const postSelect = document.getElementById("release-post-select");
+  const dateInput = document.getElementById("release-date");
+  const saveButton = document.getElementById("save-release-btn");
+  const cancelButton = document.getElementById("cancel-release-edit-btn");
+
+  if (postSelect) postSelect.value = String(post._id);
+  if (dateInput) dateInput.value = post.releaseDate ? new Date(post.releaseDate).toISOString().slice(0, 10) : "";
+  if (saveButton) saveButton.textContent = "Update Event";
+  if (cancelButton) cancelButton.style.display = "inline-block";
+};
+
+window.deleteReleaseEvent = async function deleteReleaseEvent(postId) {
+  const res = await fetch("/api/posts/" + postId, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      includeInCalendar: false,
+      releaseDate: null,
+      releaseType: ""
+    })
+  });
+
+  if (!res.ok) {
+    showStatus("Could not delete calendar event.", "error");
+    return;
+  }
+
+  if (releaseEditPostId === String(postId)) {
+    resetReleaseForm();
+  }
+
+  showStatus("Calendar event deleted.", "success");
+  await loadPosts();
+};
+
+async function saveReleaseEvent() {
+  const postSelect = document.getElementById("release-post-select");
+  const dateInput = document.getElementById("release-date");
+  const selectedPostId = postSelect?.value;
+  const releaseDate = dateInput?.value;
+
+  if (!selectedPostId) {
+    showStatus("Select a post first.", "error");
+    return;
+  }
+
+  if (!releaseDate) {
+    showStatus("Choose a release date.", "error");
+    return;
+  }
+
+  const targetPost = allDashboardPosts.find(post => String(post._id) === String(selectedPostId)) || null;
+
+  if (!targetPost) {
+    showStatus("Selected post was not found.", "error");
+    return;
+  }
+
+  const res = await fetch("/api/posts/" + targetPost._id, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      includeInCalendar: true,
+      releaseDate,
+      releaseType: targetPost.releaseType || ""
+    })
+  });
+
+  if (!res.ok) {
+    showStatus("Could not save calendar event.", "error");
+    return;
+  }
+
+  showStatus(releaseEditPostId ? "Calendar event updated." : "Calendar event published.", "success");
+  resetReleaseForm();
+  await loadPosts();
+}
+
 async function editPost(slugValue) {
   const res = await fetch("/api/posts/" + slugValue);
   const post = await res.json();
@@ -457,15 +781,29 @@ async function editPost(slugValue) {
   document.getElementById("title").value = post.title;
   document.getElementById("slug").value = post.slug;
   setSelectedCategories(Array.isArray(post.categories) ? post.categories : []);
-  document.getElementById("releaseDate").value = post.releaseDate
-    ? new Date(post.releaseDate).toISOString().slice(0, 10)
-    : "";
-  document.getElementById("releaseType").value = post.releaseType || "";
-  document.getElementById("includeInCalendar").checked = !!post.includeInCalendar;
-  updateCalendarUx();
+
+  const savePostButton = document.getElementById("save-post-btn");
+  const cancelPostEditButton = document.getElementById("cancel-post-edit-btn");
+  if (savePostButton) savePostButton.textContent = "Update Post";
+  if (cancelPostEditButton) cancelPostEditButton.style.display = "inline-block";
 
   await editor.render({ blocks: post.content });
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  clearStatus();
+}
+
+async function cancelPostEdit() {
+  document.getElementById("postForm").reset();
+  document.getElementById("postId").value = "";
+  setSelectedCategories([]);
+  await editor.clear();
+  isEditing = false;
+
+  const savePostButton = document.getElementById("save-post-btn");
+  const cancelPostEditButton = document.getElementById("cancel-post-edit-btn");
+  if (savePostButton) savePostButton.textContent = "Save Post";
+  if (cancelPostEditButton) cancelPostEditButton.style.display = "none";
+
   clearStatus();
 }
 
@@ -487,27 +825,13 @@ document.getElementById("postForm").addEventListener("submit", async e => {
 
   const titleValue = document.getElementById("title").value;
   const slugInput = document.getElementById("slug");
-  const includeInCalendar = document.getElementById("includeInCalendar").checked;
-  const releaseDateInput = document.getElementById("releaseDate");
   const slugValue = slugInput.value || toSlug(titleValue);
   slugInput.value = slugValue;
-
-  let releaseDateValue = releaseDateInput.value || null;
-  if (includeInCalendar && !releaseDateValue) {
-    const inferredDate = inferReleaseDateFromBlocks(data.blocks);
-    if (inferredDate) {
-      releaseDateValue = inferredDate;
-      releaseDateInput.value = inferredDate;
-    }
-  }
 
   const post = {
     title: titleValue,
     slug: slugValue,
     categories: selectedCategories,
-    releaseDate: releaseDateValue,
-    releaseType: document.getElementById("releaseType").value || "",
-    includeInCalendar,
     excerpt: data.blocks[0]?.data?.text?.slice(0, 100) || "",
     content: data.blocks,
     published: true
@@ -527,13 +851,7 @@ document.getElementById("postForm").addEventListener("submit", async e => {
   if (res.ok) {
     showStatus("Post saved successfully.", "success");
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    document.getElementById("postForm").reset();
-    document.getElementById("postId").value = "";
-    document.getElementById("includeInCalendar").checked = false;
-    setSelectedCategories([]);
-    updateCalendarUx();
-    editor.clear();
-    isEditing = false;
+    await cancelPostEdit();
     loadPosts();
   } else {
     showStatus("Error saving post. Try again.", "error");
@@ -548,8 +866,6 @@ document.getElementById("title").addEventListener("input", () => {
   document.getElementById("slug").value = slug;
 });
 
-document.getElementById("includeInCalendar").addEventListener("change", updateCalendarUx);
-
 document.getElementById("categorySelect").addEventListener("change", () => {
   const select = document.getElementById("categorySelect");
   const value = normalizeCategory(select?.value);
@@ -558,10 +874,16 @@ document.getElementById("categorySelect").addEventListener("change", () => {
   if (select) select.value = "";
 });
 
+document.getElementById("posts-search")?.addEventListener("input", renderPostsList);
+document.getElementById("release-event-search")?.addEventListener("input", renderReleaseEventsList);
+document.getElementById("save-release-btn")?.addEventListener("click", saveReleaseEvent);
+document.getElementById("cancel-release-edit-btn")?.addEventListener("click", resetReleaseForm);
+document.getElementById("cancel-post-edit-btn")?.addEventListener("click", cancelPostEdit);
+
 loadCategories();
 loadPosts();
+initializeReleasePostTypeahead();
 ensureStaffAccess();
-updateCalendarUx();
 </script>
 
 </body>

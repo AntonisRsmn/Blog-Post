@@ -12,6 +12,7 @@
 <header>
   <div class="header-inner">
     <a href="/" class="logo">Rusman</a>
+    <button type="button" id="mobile-menu-toggle" class="mobile-menu-toggle" aria-label="Open menu" aria-controls="mobile-sidebar" aria-expanded="false">☰</button>
     <nav>
       <a href="/" class="nav-link">Home</a>
       <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
@@ -19,6 +20,23 @@
     </nav>
   </div>
 </header>
+
+<div id="mobile-sidebar-backdrop" class="mobile-sidebar-backdrop" hidden></div>
+<aside id="mobile-sidebar" class="mobile-sidebar" aria-label="Mobile navigation" aria-hidden="true">
+  <div class="mobile-sidebar-head">
+    <strong>Menu</strong>
+    <button type="button" id="mobile-sidebar-close" class="mobile-sidebar-close" aria-label="Close menu">✕</button>
+  </div>
+  <nav class="mobile-sidebar-nav">
+    <a href="/" class="nav-link">Home</a>
+    <a href="/admin/dashboard.html" class="nav-link" data-staff-only>Dashboard</a>
+    <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
+    <div class="mobile-theme-row">
+      <span>Theme</span>
+      <button type="button" id="mobile-theme-toggle" class="mobile-theme-switch" aria-label="Toggle theme"></button>
+    </div>
+  </nav>
+</aside>
 
 <main>
   <div class="login-container">
@@ -67,7 +85,6 @@
         <a href="/">Home</a>
         <a href="/admin/dashboard.html" data-staff-only>Dashboard</a>
         <a href="/admin/profile.html" data-auth-link>Profile</a>
-        <a href="/admin/signup.html">Sign Up</a>
       </nav>
     </div>
 

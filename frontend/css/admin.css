@@ -1,7 +1,11 @@
 /* Admin panel styles */
 
+main {
+  max-width: 1360px;
+}
+
 .admin-container {
-  max-width: 1160px;
+  max-width: 1320px;
   margin: 0 auto;
   padding: 28px 16px 40px;
 }
@@ -24,7 +28,14 @@
 
 .admin-grid {
   display: grid;
-  grid-template-columns: 1.2fr 0.8fr;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.admin-side-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
   align-items: start;
 }
@@ -233,6 +244,17 @@
   margin-top: 2px;
 }
 
+.post-form-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.post-form-actions .admin-save-btn {
+  width: auto;
+  flex: 1;
+}
+
 /* Editor.js styles */
 #editor {
   background: var(--surface);
@@ -266,6 +288,59 @@
   list-style: none;
   padding: 0;
   margin: 0;
+}
+
+.posts-search-wrap {
+  margin: 0 0 12px;
+}
+
+.posts-search-wrap input {
+  width: 100%;
+}
+
+.release-manager {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.release-manager h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.release-manager-hint {
+  margin: 0 0 10px;
+  font-size: 0.84rem;
+  color: var(--text-muted);
+}
+
+.release-manager-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.release-event-filters {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+
+.release-event-filters input {
+  width: 100%;
+}
+
+.release-event-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.release-event-date {
+  color: var(--text-muted);
+  font-size: 0.78rem;
 }
 
 .post-item {
@@ -384,6 +459,10 @@
 /* Responsive */
 @media (max-width: 768px) {
   .admin-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-side-grid {
     grid-template-columns: 1fr;
   }
 

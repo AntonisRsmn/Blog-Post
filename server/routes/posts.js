@@ -11,7 +11,7 @@ const router = express.Router();
 // Get all published posts
 router.get("/", async (req, res) => {
   const posts = await Post.find({ published: true })
-    .select("title author authorId categories slug excerpt createdAt content releaseDate releaseType")
+    .select("title author authorId categories slug excerpt createdAt content releaseDate releaseType includeInCalendar")
     .sort({ createdAt: -1 });
 
   res.json(posts);
