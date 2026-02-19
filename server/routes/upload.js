@@ -2,7 +2,7 @@ const express = require("express");
 const cloudinary = require("cloudinary").v2;
 const multer = require("multer");
 const auth = require("../middleware/auth");
-const requireStaff = require("../middleware/requireStaff");
+const requireUploaderOrStaff = require("../middleware/requireUploaderOrStaff");
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -17,7 +17,7 @@ const upload = multer({
 
 const router = express.Router();
 
-router.post("/", auth, requireStaff, upload.single("image"), (req, res) => {
+router.post("/", auth, requireUploaderOrStaff, upload.single("image"), (req, res) => {
   const stream = cloudinary.uploader.upload_stream(
     { folder: "blog" },
     (err, result) => {

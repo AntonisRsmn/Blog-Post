@@ -1,6 +1,6 @@
 const express = require("express");
 const auth = require("../middleware/auth");
-const requireStaff = require("../middleware/requireStaff");
+const requireUploaderOrStaff = require("../middleware/requireUploaderOrStaff");
 const Category = require("../models/Category");
 const Post = require("../models/Post");
 
@@ -52,7 +52,7 @@ router.get("/", async (req, res) => {
   res.json(categories);
 });
 
-router.post("/", auth, requireStaff, async (req, res) => {
+router.post("/", auth, requireUploaderOrStaff, async (req, res) => {
   const name = normalizeCategoryName(req.body?.name);
   if (!name) {
     return res.status(400).json({ error: "Category name is required." });
@@ -67,7 +67,7 @@ router.post("/", auth, requireStaff, async (req, res) => {
   res.json({ name });
 });
 
-router.delete("/:name", auth, requireStaff, async (req, res) => {
+router.delete("/:name", auth, requireUploaderOrStaff, async (req, res) => {
   const name = normalizeCategoryName(decodeURIComponent(req.params.name));
   if (!name) {
     return res.status(400).json({ error: "Category name is required." });

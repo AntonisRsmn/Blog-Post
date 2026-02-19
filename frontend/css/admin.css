@@ -415,6 +415,57 @@ main {
   font-size: 0.85rem;
 }
 
+.staff-entry-main {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+.staff-entry-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.staff-entry-main strong {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 1rem;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.staff-role-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.staff-role-badge.is-admin {
+  border: 1px solid var(--accent);
+  background: var(--accent-light);
+  color: var(--text);
+}
+
+.staff-role-badge.is-staff {
+  border: 1px solid var(--border-dark);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+}
+
 .posts-list-actions {
   margin-top: 12px;
   display: flex;

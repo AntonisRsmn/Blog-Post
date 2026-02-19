@@ -421,7 +421,7 @@ async function loadComments(postId) {
       day: 'numeric'
     });
 
-    const canDelete = currentUser && (currentUser.role === "staff" || currentUser._id === comment.userId);
+    const canDelete = currentUser && ((currentUser.role === "admin" || currentUser.role === "staff") || currentUser._id === comment.userId);
     const deleteButton = canDelete
       ? `<button class="comment-delete" onclick="deleteComment('${comment._id}')">Delete</button>`
       : "";

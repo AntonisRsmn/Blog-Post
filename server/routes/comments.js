@@ -52,7 +52,7 @@ router.delete("/:commentId", auth, async (req, res) => {
 
   const user = await User.findById(req.user.userId).select("role");
   const isOwner = comment.userId.toString() === req.user.userId;
-  const isStaff = user?.role === "staff";
+  const isStaff = user?.role === "staff" || user?.role === "admin";
 
   if (!isOwner && !isStaff) {
     return res.status(403).json({ error: "Forbidden" });

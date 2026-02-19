@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Profile</title>
+  <title>Staff Access</title>
   <link rel="stylesheet" href="../css/global.css" />
   <link rel="stylesheet" href="../css/admin.css" />
 </head>
@@ -43,65 +43,39 @@
 
 <main>
   <div class="admin-container">
-    <h1 style="margin-bottom: 30px; color: var(--accent);">Profile</h1>
+    <div class="admin-page-head">
+      <h1 class="admin-title">Staff Access</h1>
+      <p class="admin-subtitle">Add or remove emails that should have staff permissions. List refreshes automatically.</p>
+    </div>
+
     <div id="status" class="admin-status" role="status" aria-live="polite"></div>
 
-    <div class="profile-grid">
+    <div class="admin-grid admin-grid-no-editor">
       <div class="admin-section">
-        <h2>Account</h2>
-        <form id="profileForm">
-          <div class="profile-avatar">
-            <img id="avatarPreview" src="" alt="Profile avatar" />
-            <div class="avatar-upload">
-              <input type="file" id="avatar" accept="image/*" />
-              <input type="hidden" id="avatarUrl" />
-            </div>
-          </div>
-
+        <h2>Add Staff Email</h2>
+        <form id="staffForm">
           <div class="form-group">
-            <label>Email</label>
-            <input id="email" type="email" readonly disabled />
+            <label for="staffEmail">Email</label>
+            <input id="staffEmail" type="email" placeholder="name@example.com" required autocomplete="email" />
           </div>
-
-          <div class="name-row">
-            <div class="form-group">
-              <label>First Name</label>
-              <input id="firstName" type="text" placeholder="First name" autocomplete="given-name" />
-            </div>
-
-            <div class="form-group">
-              <label>Last Name</label>
-              <input id="lastName" type="text" placeholder="Last name" autocomplete="family-name" />
-            </div>
-          </div>
-
           <div class="form-group">
-            <label>Username</label>
-            <input id="username" type="text" placeholder="Your name" />
+            <label for="staffRole">Role</label>
+            <select id="staffRole">
+              <option value="admin">admin</option>
+              <option value="staff">staff</option>
+            </select>
           </div>
-
-          <button type="submit">Save Profile</button>
-          <button type="button" id="logoutBtn" class="secondary" style="margin-left: 8px;">Log out</button>
+          <button type="submit">Save Access</button>
         </form>
       </div>
 
       <div class="admin-section">
-        <h2>Change Password</h2>
-        <form id="passwordForm">
-          <div class="form-group">
-            <label>Current Password</label>
-            <input id="currentPassword" type="password" autocomplete="current-password" required />
-          </div>
-          <div class="form-group">
-            <label>New Password</label>
-            <input id="newPassword" type="password" autocomplete="new-password" required />
-          </div>
-          <div class="form-group">
-            <label>Confirm New Password</label>
-            <input id="confirmPassword" type="password" autocomplete="new-password" required />
-          </div>
-          <button type="submit">Update Password</button>
-        </form>
+        <h2>Current Staff Emails</h2>
+        <div class="form-group">
+          <label for="staffSearch">Search</label>
+          <input id="staffSearch" type="text" placeholder="Search by name, email, or username..." autocomplete="off" />
+        </div>
+        <ul id="staffList" class="posts-list"></ul>
       </div>
     </div>
   </div>
@@ -159,19 +133,18 @@
 
 <script src="../js/theme.js"></script>
 <script>
-document.getElementById('year').textContent = new Date().getFullYear();
-
-function updateThemeLabel() {
-  const label = document.getElementById('theme-label');
-  const mode = document.documentElement.getAttribute('data-theme') || 'light';
-  label.textContent = mode === 'dark' ? 'Dark' : 'Light';
-}
-window.addEventListener('DOMContentLoaded', updateThemeLabel);
+document.getElementById("year").textContent = new Date().getFullYear();
 
 const statusEl = document.getElementById("status");
+const listEl = document.getElementById("staffList");
+const formEl = document.getElementById("staffForm");
+const emailInput = document.getElementById("staffEmail");
+const roleInput = document.getElementById("staffRole");
+const searchInput = document.getElementById("staffSearch");
+let refreshTimer;
+let allEntries = [];
 
 function showStatus(message, type) {
-  if (!statusEl) return;
   statusEl.textContent = message;
   statusEl.classList.remove("success", "error", "show");
   if (type) statusEl.classList.add(type);
@@ -179,121 +152,154 @@ function showStatus(message, type) {
 }
 
 function clearStatus() {
-  if (!statusEl) return;
   statusEl.textContent = "";
   statusEl.classList.remove("success", "error", "show");
 }
 
-async function loadProfile() {
-  const res = await fetch("/api/auth/profile");
-  if (!res.ok) {
-    showStatus("Please sign in again.", "error");
+function getDisplayName(entry) {
+  const firstName = entry.user?.firstName || "";
+  const lastName = entry.user?.lastName || "";
+  const fullName = `${firstName} ${lastName}`.trim();
+  return fullName || "—";
+}
+
+function entryMatchesQuery(entry, rawQuery) {
+  const query = String(rawQuery || "").trim().toLowerCase();
+  if (!query) return true;
+
+  const fullName = `${entry.user?.firstName || ""} ${entry.user?.lastName || ""}`.trim().toLowerCase();
+  const username = String(entry.user?.username || "").toLowerCase();
+  const email = String(entry.email || "").toLowerCase();
+  const role = String(entry.role || "").toLowerCase();
+
+  return fullName.includes(query) || username.includes(query) || email.includes(query) || role.includes(query);
+}
+
+function createRow(entry) {
+  const item = document.createElement("li");
+  item.className = "post-item";
+
+  const meta = document.createElement("div");
+  meta.className = "staff-entry-main";
+
+  const headRow = document.createElement("div");
+  headRow.className = "staff-entry-head";
+
+  const emailEl = document.createElement("strong");
+  emailEl.textContent = entry.email;
+
+  const roleEl = document.createElement("span");
+  const isStaffRole = entry.role === "staff";
+  roleEl.className = `staff-role-badge ${isStaffRole ? "is-staff" : "is-admin"}`;
+  roleEl.textContent = isStaffRole ? "Staff" : "Admin";
+
+  headRow.appendChild(emailEl);
+  headRow.appendChild(roleEl);
+  meta.appendChild(headRow);
+
+  const actions = document.createElement("div");
+  actions.className = "post-actions";
+
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "secondary";
+  removeBtn.textContent = "Remove";
+  removeBtn.disabled = entry.source === "env";
+
+  removeBtn.addEventListener("click", async () => {
+    clearStatus();
+    const res = await fetch(`/api/staff/${encodeURIComponent(entry.email)}`, {
+      method: "DELETE"
+    });
+
+    if (!res.ok) {
+      const payload = await res.json().catch(() => ({}));
+      showStatus(payload.error || "Could not remove email.", "error");
+      return;
+    }
+
+    showStatus("Staff email removed.", "success");
+    await loadStaffEntries();
+  });
+
+  actions.appendChild(removeBtn);
+  item.appendChild(meta);
+  item.appendChild(actions);
+  return item;
+}
+
+function renderEntries(entries) {
+  const filtered = entries.filter(entry => entryMatchesQuery(entry, searchInput?.value || ""));
+
+  if (!filtered.length) {
+    listEl.innerHTML = '<li class="post-item"><div class="post-main"><strong>No matching staff entries.</strong></div></li>';
     return;
   }
 
-  const profile = await res.json();
-  document.getElementById("email").value = profile.email || "";
-  document.getElementById("firstName").value = profile.firstName || "";
-  document.getElementById("lastName").value = profile.lastName || "";
-  document.getElementById("username").value = profile.username || "";
-  document.getElementById("avatarUrl").value = profile.avatarUrl || "";
-
-  const avatarPreview = document.getElementById("avatarPreview");
-  avatarPreview.src = profile.avatarUrl || "https://via.placeholder.com/72";
+  listEl.innerHTML = "";
+  filtered.forEach(entry => {
+    listEl.appendChild(createRow(entry));
+  });
 }
 
-async function uploadAvatar(file) {
-  const form = new FormData();
-  form.append("image", file);
-
-  const res = await fetch("/api/upload", {
-    method: "POST",
-    body: form
-  });
-
+async function loadStaffEntries() {
+  const res = await fetch("/api/staff");
   if (!res.ok) {
-    showStatus("Image upload failed.", "error");
-    return null;
+    listEl.innerHTML = '<li class="post-item"><div class="post-main"><strong>Unable to load staff list.</strong></div></li>';
+    return;
   }
 
   const data = await res.json();
-  return data.url;
+  const entries = Array.isArray(data.entries) ? data.entries : [];
+  allEntries = entries;
+
+  if (!entries.length) {
+    listEl.innerHTML = '<li class="post-item"><div class="post-main"><strong>No staff emails configured.</strong></div></li>';
+    return;
+  }
+
+  renderEntries(entries);
 }
 
-document.getElementById("avatar").addEventListener("change", async e => {
-  const file = e.target.files[0];
-  if (!file) return;
-
-  clearStatus();
-  const url = await uploadAvatar(file);
-  if (!url) return;
-
-  document.getElementById("avatarUrl").value = url;
-  document.getElementById("avatarPreview").src = url;
-  showStatus("Avatar uploaded. Save profile to apply.", "success");
-});
-
-document.getElementById("profileForm").addEventListener("submit", async e => {
+formEl.addEventListener("submit", async e => {
   e.preventDefault();
   clearStatus();
 
-  const payload = {
-    firstName: document.getElementById("firstName").value,
-    lastName: document.getElementById("lastName").value,
-    username: document.getElementById("username").value,
-    avatarUrl: document.getElementById("avatarUrl").value
-  };
+  const email = emailInput.value.trim().toLowerCase();
+  const role = roleInput.value === "staff" ? "staff" : "admin";
+  if (!email) return;
 
-  const res = await fetch("/api/auth/profile", {
-    method: "PUT",
+  const res = await fetch("/api/staff", {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
+    body: JSON.stringify({ email, role })
   });
 
   if (!res.ok) {
-    showStatus("Profile update failed.", "error");
+    const payload = await res.json().catch(() => ({}));
+    showStatus(payload.error || "Could not grant staff access.", "error");
     return;
   }
 
-  showStatus("Profile updated.", "success");
+  emailInput.value = "";
+  showStatus("Access role saved.", "success");
+  await loadStaffEntries();
 });
 
-document.getElementById("passwordForm").addEventListener("submit", async e => {
-  e.preventDefault();
-  clearStatus();
-
-  const currentPassword = document.getElementById("currentPassword").value;
-  const newPassword = document.getElementById("newPassword").value;
-  const confirmPassword = document.getElementById("confirmPassword").value;
-
-  if (newPassword !== confirmPassword) {
-    showStatus("New passwords do not match.", "error");
-    return;
-  }
-
-  const res = await fetch("/api/auth/password", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ currentPassword, newPassword })
-  });
-
-  if (!res.ok) {
-    showStatus("Current password is incorrect.", "error");
-    return;
-  }
-
-  document.getElementById("currentPassword").value = "";
-  document.getElementById("newPassword").value = "";
-  document.getElementById("confirmPassword").value = "";
-  showStatus("Password updated.", "success");
+searchInput.addEventListener("input", () => {
+  renderEntries(allEntries);
 });
 
-document.getElementById("logoutBtn").addEventListener("click", async () => {
-  await fetch("/api/auth/logout", { method: "POST" });
-  window.location.href = "/admin/login.html";
+async function initialize() {
+  await loadStaffEntries();
+  refreshTimer = window.setInterval(loadStaffEntries, 10000);
+}
+
+window.addEventListener("beforeunload", () => {
+  if (refreshTimer) window.clearInterval(refreshTimer);
 });
 
-loadProfile();
+initialize();
 </script>
 
 </body>

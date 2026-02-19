@@ -12,6 +12,7 @@ const categoryRoutes = require("./routes/categories");
 const releaseRoutes = require("./routes/releases");
 const uploadRoutes = require("./routes/upload");
 const commentRoutes = require("./routes/comments");
+const staffRoutes = require("./routes/staff");
 const auth = require("./middleware/auth");
 const requireStaff = require("./middleware/requireStaff");
 
@@ -27,11 +28,13 @@ app.use("/api/categories", categoryRoutes);
 app.use("/api/releases", releaseRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/comments", commentRoutes);
+app.use("/api/staff", staffRoutes);
 
 // Serve frontend
 const frontendPath = path.join(__dirname, "..", "frontend");
 app.use("/admin", async (req, res, next) => {
   const publicAdminPages = new Set(["/login.html", "/signup.html"]);
+  const staffOnlyAdminPages = new Set(["/staff.html"]);
   if (publicAdminPages.has(req.path)) {
     return next();
   }
@@ -44,7 +47,22 @@ app.use("/admin", async (req, res, next) => {
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(payload.userId).select("role");
-    if (!user || user.role !== "staff") {
+    if (!user) {
+      return res.redirect("/no-access.html");
+    }
+
+    if (user.role === "admin") {
+      return next();
+    }
+
+    if (user.role === "staff") {
+      if (staffOnlyAdminPages.has(req.path)) {
+        return res.redirect("/no-access.html");
+      }
+      return next();
+    }
+
+    if (req.path !== "/profile.html") {
       return res.redirect("/no-access.html");
     }
   } catch {

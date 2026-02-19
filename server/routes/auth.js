@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const StaffAccess = require("../models/StaffAccess");
 const auth = require("../middleware/auth");
 
 const router = express.Router();
@@ -14,9 +15,24 @@ function getStaffEmails() {
     .filter(Boolean);
 }
 
-function resolveRole(email) {
+function normalizeEmail(email) {
+  return String(email || "").trim().toLowerCase();
+}
+
+async function resolveRole(email) {
+  const normalizedEmail = normalizeEmail(email);
+  if (!normalizedEmail) return "commenter";
+
   const staffEmails = getStaffEmails();
-  return staffEmails.includes(email.toLowerCase()) ? "staff" : "commenter";
+  if (staffEmails.includes(normalizedEmail)) return "admin";
+
+  const staffEntry = await StaffAccess.findOne({ email: normalizedEmail }).select("role");
+  if (!staffEntry) return "commenter";
+
+  if (staffEntry.role === "admin") return "admin";
+  if (staffEntry.role === "staff") return "staff";
+  if (staffEntry.role === "uploader") return "staff";
+  return "commenter";
 }
 
 router.post("/signup", async (req, res) => {
@@ -45,15 +61,16 @@ router.post("/signup", async (req, res) => {
     });
   }
 
-  const existing = await User.findOne({ email: email.toLowerCase().trim() });
+  const normalizedEmail = normalizeEmail(email);
+  const existing = await User.findOne({ email: normalizedEmail });
   if (existing) {
     return res.status(409).json({ error: "This email is already registered. Please log in instead." });
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const role = resolveRole(email);
+  const role = await resolveRole(normalizedEmail);
   const user = await User.create({
-    email,
+    email: normalizedEmail,
     passwordHash,
     role,
     firstName: normalizedFirstName,
@@ -80,13 +97,14 @@ router.post("/login", async (req, res) => {
     return res.status(400).json({ error: "Email and password are required" });
   }
 
-  const user = await User.findOne({ email: email.toLowerCase().trim() });
+  const normalizedEmail = normalizeEmail(email);
+  const user = await User.findOne({ email: normalizedEmail });
   if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
   const match = await bcrypt.compare(password, user.passwordHash);
   if (!match) return res.status(401).json({ error: "Invalid credentials" });
 
-  const resolvedRole = resolveRole(user.email);
+  const resolvedRole = await resolveRole(user.email);
   if (user.role !== resolvedRole) {
     user.role = resolvedRole;
     await user.save();

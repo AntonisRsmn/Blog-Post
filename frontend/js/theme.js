@@ -83,13 +83,23 @@ async function updateStaffLinks() {
   const staffLinks = document.querySelectorAll('[data-staff-only]');
   if (!staffLinks.length) return;
 
+  staffLinks.forEach(link => {
+    link.hidden = true;
+  });
+
   const profile = await getProfile();
   staffLinks.forEach(link => {
-    if (profile && profile.role === 'staff') {
-      link.style.display = '';
-    } else {
-      link.style.display = 'none';
+    const href = String(link.getAttribute('href') || '');
+    const isStaffManagementLink = href.includes('/admin/staff.html');
+    const isAdminOrStaff = profile && (profile.role === 'admin' || profile.role === 'staff');
+    const isAdmin = profile && profile.role === 'admin';
+
+    if (isStaffManagementLink) {
+      link.hidden = !isAdmin;
+      return;
     }
+
+    link.hidden = !isAdminOrStaff;
   });
 }
 
