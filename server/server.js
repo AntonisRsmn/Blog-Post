@@ -29,45 +29,35 @@ app.use("/api/upload", uploadRoutes);
 app.use("/api/comments", commentRoutes);
 
 // Serve frontend
+const frontendPath = path.join(__dirname, "..", "frontend");
 app.use("/admin", async (req, res, next) => {
   const publicAdminPages = new Set(["/login.html", "/signup.html"]);
-  const loggedInAllowedPages = new Set(["/profile.html"]);
-
-  // Allow public admin pages
   if (publicAdminPages.has(req.path)) {
     return next();
   }
 
   const token = req.cookies.token;
-
-  // If no token → not logged in
   if (!token) {
-    return res.redirect("/admin/login.html");
+    return res.redirect("/no-access.html");
   }
 
   try {
     const payload = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(payload.userId).select("role");
-
-    if (!user) {
-      return res.redirect("/admin/login.html");
-    }
-
-    // Allow profile page for any logged-in user
-    if (loggedInAllowedPages.has(req.path)) {
-      return next();
-    }
-
-    // Everything else under /admin requires staff
-    if (user.role !== "staff") {
+    if (!user || user.role !== "staff") {
       return res.redirect("/no-access.html");
     }
-
-    return next();
-
   } catch {
-    return res.redirect("/admin/login.html");
+    return res.redirect("/no-access.html");
   }
+
+  return next();
+});
+
+app.use(express.static(frontendPath));
+
+app.get("/", (req, res) => {
+  res.sendFile(path.join(frontendPath, "index.html"));
 });
 
 // DB
@@ -80,4 +70,3 @@ mongoose
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log("Server running on port", PORT);
-});
