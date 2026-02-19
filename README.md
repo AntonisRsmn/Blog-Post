@@ -19,14 +19,14 @@ This repository contains a full-stack blog platform with:
 
 ### Logged-in users can:
 - Access profile page
-- Update username and avatar URL
+- Update first name, last name, username, and avatar URL
 - Upload avatar image
 - Change password
 - Post comments on articles
 - Delete their own comments
 
 ### Staff users can additionally:
-- Access `/admin/dashboard.html`
+- Access `/admin/*` management pages (`dashboard.html`, `posts.html`, `events.html`)
 - Create, edit, and delete posts
 - Assign and manage categories
 - Upload images in Editor.js content
@@ -61,7 +61,7 @@ Core entry point:
 
 - `frontend/`
   - Public pages: `index.html`, `post.html`, `no-access.html`, `tos.html`, `privacy.html`
-  - Admin pages: `admin/dashboard.html`, `admin/login.html`, `admin/signup.html`, `admin/profile.html`
+  - Admin pages: `admin/dashboard.html`, `admin/posts.html`, `admin/events.html`, `admin/login.html`, `admin/signup.html`, `admin/profile.html`
   - Styles: `css/*.css`
   - Scripts: `js/theme.js`, `js/blog.js`, `js/api.js`, `js/admin.js`
 - `server/`
@@ -78,6 +78,8 @@ Core entry point:
 Fields:
 - `email` (unique, required)
 - `passwordHash` (required)
+- `firstName` (optional string)
+- `lastName` (optional string)
 - `username` (optional string)
 - `avatarUrl` (optional string)
 - `role` (`commenter` or `staff`)
@@ -131,7 +133,8 @@ Fields:
 - `requireStaff` middleware gates staff-only endpoints
 
 ## Protected areas
-- `/admin/dashboard.html` is guarded server-side in `server.js`
+- All `/admin/*` pages are guarded server-side in `server.js`
+- Exceptions: `/admin/login.html` and `/admin/signup.html` remain public
 - Non-staff users are redirected to `/no-access.html`
 
 ---
@@ -142,16 +145,16 @@ Base path: `/api`
 
 ## Auth routes (`/api/auth`)
 - `POST /signup`
-  - Body: `{ email, password }`
+  - Body: `{ firstName, lastName, email, password }`
   - Validates strong password (>=8 chars, letter, number, symbol)
   - Creates user, sets auth cookie
 - `POST /login`
   - Body: `{ email, password }`
   - Validates credentials, refreshes role from `STAFF_EMAILS`, sets auth cookie
 - `GET /profile` (auth required)
-  - Returns `_id`, `email`, `username`, `avatarUrl`, `role`
+  - Returns `_id`, `email`, `firstName`, `lastName`, `username`, `avatarUrl`, `role`
 - `PUT /profile` (auth required)
-  - Body supports `username`, `avatarUrl`
+  - Body supports `firstName`, `lastName`, `username`, `avatarUrl`
 - `PUT /password` (auth required)
   - Body: `{ currentPassword, newPassword }`
 - `POST /logout`
@@ -226,20 +229,30 @@ Base path: `/api`
 - Signup with password-strength validation
 
 ## `frontend/admin/profile.html`
-- View/update username/avatar URL
+- View/update first name, last name, username, and avatar URL
 - Avatar upload via `/api/upload`
 - Password change
 - Logout
 
 ## `frontend/admin/dashboard.html`
 - Staff-only content management panel
-- Editor.js post create/edit workflow
+- Latest posts and latest calendar events overview
+- Modal create/edit workflow for posts and events
 - Category selection chips
-- Posts list with search/edit/delete
-- Calendar event manager (publish/update/delete release events)
+- Quick access to full management pages (`posts.html`, `events.html`)
+
+## `frontend/admin/posts.html`
+- Full posts management page
+- Search, create, edit, and delete posts
+- Editor.js modal editing flow
+
+## `frontend/admin/events.html`
+- Full calendar events management page
+- Filters by search/date/month/year
+- Create, edit, and delete calendar events
 
 ## `frontend/no-access.html`
-- Access denied page for unauthorized dashboard access
+- Access denied page for unauthorized admin access
 
 ## `frontend/tos.html` and `frontend/privacy.html`
 - Legal documentation pages linked from all footers
@@ -283,7 +296,7 @@ Implemented:
 - Password hashing (`bcrypt`)
 - Signed JWT cookies (`httpOnly`, `sameSite: strict`)
 - Staff role checks in middleware
-- Server-side dashboard access guard
+- Server-side `/admin/*` access guard (with login/signup exceptions)
 - Upload endpoint restricted to authenticated staff
 - Upload size limit (5MB)
 

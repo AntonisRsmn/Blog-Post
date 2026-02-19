@@ -19,14 +19,14 @@
 
 ### Συνδεδεμένοι χρήστες μπορούν να:
 - Ανοίξουν τη σελίδα προφίλ
-- Αλλάξουν username και avatar URL
+- Αλλάξουν first name, last name, username και avatar URL
 - Ανεβάσουν avatar εικόνα
 - Αλλάξουν κωδικό
 - Δημοσιεύσουν σχόλια
 - Διαγράψουν τα δικά τους σχόλια
 
 ### Staff χρήστες επιπλέον μπορούν να:
-- Μπουν στο `/admin/dashboard.html`
+- Μπουν στα `/admin/*` management pages (`dashboard.html`, `posts.html`, `events.html`)
 - Δημιουργήσουν, επεξεργαστούν και διαγράψουν άρθρα
 - Ορίσουν και διαχειριστούν κατηγορίες
 - Ανεβάσουν εικόνες μέσα από Editor.js
@@ -61,7 +61,7 @@ Entry point:
 
 - `frontend/`
   - Public pages: `index.html`, `post.html`, `no-access.html`, `tos.html`, `privacy.html`
-  - Admin pages: `admin/dashboard.html`, `admin/login.html`, `admin/signup.html`, `admin/profile.html`
+  - Admin pages: `admin/dashboard.html`, `admin/posts.html`, `admin/events.html`, `admin/login.html`, `admin/signup.html`, `admin/profile.html`
   - Styles: `css/*.css`
   - Scripts: `js/theme.js`, `js/blog.js`, `js/api.js`, `js/admin.js`
 - `server/`
@@ -78,8 +78,10 @@ Entry point:
 Πεδία:
 - `email` (unique, required)
 - `passwordHash` (required)
-- `username` (προαιρετικό)
-- `avatarUrl` (προαιρετικό)
+- `firstName` (προαιρετικό string)
+- `lastName` (προαιρετικό string)
+- `username` (προαιρετικό string)
+- `avatarUrl` (προαιρετικό string)
 - `role` (`commenter` ή `staff`)
 - timestamps
 
@@ -93,7 +95,7 @@ Entry point:
 - `includeInCalendar` (boolean)
 - `slug` (unique, required)
 - `excerpt`
-- `content` (Editor.js blocks)
+- `content` (array από Editor.js blocks)
 - `published` (boolean)
 - timestamps
 
@@ -109,9 +111,8 @@ Entry point:
 - `name` (unique, required)
 - timestamps
 
-> Σημειώσεις:
-- Υπάρχει `Admin` model, αλλά η ενεργή εξουσιοδότηση βασίζεται στο `User.role`.
-- Όταν δεν υπάρχουν κατηγορίες, γίνεται auto-seed default κατηγοριών.
+- Υπάρχει `Admin` model, αλλά η ενεργή auth/authorization ροή βασίζεται στο `User.role`.
+- Όταν δεν υπάρχουν categories, γίνεται auto-seed των default κατηγοριών.
 
 ---
 
@@ -123,7 +124,7 @@ Entry point:
   - `httpOnly: true`
   - `sameSite: "strict"`
   - `secure: true` μόνο σε production
-- Το middleware `auth` κάνει verify token και βάζει `req.user`
+- Το middleware `auth` κάνει verify το token και βάζει `req.user`
 
 ## Role model
 - Το role προκύπτει από τη μεταβλητή `STAFF_EMAILS`
@@ -131,7 +132,8 @@ Entry point:
 - Το middleware `requireStaff` προστατεύει staff-only endpoints
 
 ## Protected περιοχή
-- Το `/admin/dashboard.html` προστατεύεται server-side στο `server.js`
+- Όλες οι σελίδες `/admin/*` προστατεύονται server-side στο `server.js`
+- Εξαιρέσεις: τα `/admin/login.html` και `/admin/signup.html` παραμένουν δημόσια
 - Μη-staff χρήστες γίνονται redirect στο `/no-access.html`
 
 ---
@@ -142,16 +144,16 @@ Base path: `/api`
 
 ## Auth routes (`/api/auth`)
 - `POST /signup`
-  - Body: `{ email, password }`
+  - Body: `{ firstName, lastName, email, password }`
   - Έλεγχος ισχυρού password (>=8, γράμμα, αριθμός, σύμβολο)
   - Δημιουργία χρήστη, set auth cookie
 - `POST /login`
   - Body: `{ email, password }`
   - Έλεγχος credentials, refresh role από `STAFF_EMAILS`, set auth cookie
 - `GET /profile` (auth required)
-  - Επιστρέφει `_id`, `email`, `username`, `avatarUrl`, `role`
+  - Επιστρέφει `_id`, `email`, `firstName`, `lastName`, `username`, `avatarUrl`, `role`
 - `PUT /profile` (auth required)
-  - Body με `username`, `avatarUrl`
+  - Body με `firstName`, `lastName`, `username`, `avatarUrl`
 - `PUT /password` (auth required)
   - Body: `{ currentPassword, newPassword }`
 - `POST /logout`
@@ -226,20 +228,30 @@ Base path: `/api`
 - Signup με password strength validation
 
 ## `frontend/admin/profile.html`
-- Προβολή/ενημέρωση username και avatar URL
+- Προβολή/ενημέρωση first name, last name, username και avatar URL
 - Upload avatar μέσω `/api/upload`
 - Αλλαγή κωδικού
 - Logout
 
 ## `frontend/admin/dashboard.html`
 - Staff-only panel διαχείρισης περιεχομένου
-- Editor.js για create/edit άρθρων
+- Επισκόπηση με latest posts και latest calendar events
+- Modal ροή για create/edit σε posts και events
 - Category chips και επιλογή κατηγοριών
-- Post list με search/edit/delete
-- Calendar event manager (publish/update/delete)
+- Γρήγορα links για πλήρη διαχείριση (`posts.html`, `events.html`)
+
+## `frontend/admin/posts.html`
+- Πλήρης σελίδα διαχείρισης posts
+- Search, create, edit και delete posts
+- Editor.js modal flow για επεξεργασία
+
+## `frontend/admin/events.html`
+- Πλήρης σελίδα διαχείρισης calendar events
+- Φίλτρα με search/date/month/year
+- Create, edit και delete calendar events
 
 ## `frontend/no-access.html`
-- Access denied σελίδα για μη εξουσιοδοτημένο dashboard access
+- Access denied σελίδα για μη εξουσιοδοτημένο admin access
 
 ## `frontend/tos.html` και `frontend/privacy.html`
 - Νομικές σελίδες συνδεδεμένες σε όλα τα footers
@@ -283,7 +295,7 @@ Base path: `/api`
 - Hashing κωδικών (`bcrypt`)
 - Signed JWT cookies (`httpOnly`, `sameSite: strict`)
 - Staff role checks σε middleware
-- Server-side guard για dashboard route
+- Server-side guard για `/admin/*` (με εξαιρέσεις login/signup)
 - Upload endpoint μόνο για authenticated staff
 - Upload όριο 5MB
 
