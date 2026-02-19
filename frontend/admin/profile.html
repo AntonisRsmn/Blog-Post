@@ -50,7 +50,7 @@
         <form id="profileForm">
           <div class="profile-avatar">
             <img id="avatarPreview" src="" alt="Profile avatar" />
-            <div>
+            <div class="avatar-upload">
               <input type="file" id="avatar" accept="image/*" />
               <input type="hidden" id="avatarUrl" />
             </div>
@@ -59,6 +59,18 @@
           <div class="form-group">
             <label>Email</label>
             <input id="email" type="email" readonly disabled />
+          </div>
+
+          <div class="name-row">
+            <div class="form-group">
+              <label>First Name</label>
+              <input id="firstName" type="text" placeholder="First name" autocomplete="given-name" />
+            </div>
+
+            <div class="form-group">
+              <label>Last Name</label>
+              <input id="lastName" type="text" placeholder="Last name" autocomplete="family-name" />
+            </div>
           </div>
 
           <div class="form-group">
@@ -99,14 +111,13 @@
       <div class="brand-small">
         Antonios <span style="color:var(--accent)">Rusman</span>
       </div>
-      <div class="muted small">© <span id="year"></span> Antonios Rusman — All rights reserved.</div>
+      <div class="muted small">© <span id="year"></span> <a href="https://rusman.gr" target="_blank" rel="noopener">Antonios Rusman</a> — All rights reserved.</div>
     </div>
 
     <div class="footer-center">
       <nav class="footer-nav" aria-label="Footer navigation">
-        <a href="/">Home</a>
-        <a href="/admin/dashboard.html" data-staff-only>Dashboard</a>
-        <a href="/admin/profile.html" data-auth-link>Profile</a>
+        <a href="/tos.html">Terms of Service</a>
+        <a href="/privacy.html">Privacy Policy</a>
       </nav>
     </div>
 
@@ -180,6 +191,8 @@ async function loadProfile() {
 
   const profile = await res.json();
   document.getElementById("email").value = profile.email || "";
+  document.getElementById("firstName").value = profile.firstName || "";
+  document.getElementById("lastName").value = profile.lastName || "";
   document.getElementById("username").value = profile.username || "";
   document.getElementById("avatarUrl").value = profile.avatarUrl || "";
 
@@ -223,6 +236,8 @@ document.getElementById("profileForm").addEventListener("submit", async e => {
   clearStatus();
 
   const payload = {
+    firstName: document.getElementById("firstName").value,
+    lastName: document.getElementById("lastName").value,
     username: document.getElementById("username").value,
     avatarUrl: document.getElementById("avatarUrl").value
   };

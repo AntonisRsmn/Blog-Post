@@ -77,13 +77,49 @@
     </div>
     <div id="status" class="admin-status" role="status" aria-live="polite"></div>
     
-    <div class="admin-grid">
-      <!-- Post Editor -->
-      <div class="admin-section">
-        <h2>Create / Edit Post</h2>
-        <form id="postForm">
+    <div class="admin-grid admin-grid-no-editor">
+      <!-- Posts and Calendar -->
+      <div class="admin-side-grid">
+        <div class="admin-section">
+          <div class="latest-posts-head">
+            <div class="latest-posts-head-copy">
+              <h2>Latest Posts</h2>
+              <p class="release-manager-hint">Showing the 7 most recent published posts.</p>
+            </div>
+            <button type="button" class="admin-link-btn admin-link-btn-primary" onclick="openCreatePostModal()">New Post</button>
+          </div>
+          <ul id="posts" class="posts-list"></ul>
+          <div class="posts-list-actions posts-list-actions-left">
+            <a href="/admin/posts.html" class="admin-link-btn">See all posts</a>
+          </div>
+        </div>
+
+        <div class="admin-section">
+          <div class="latest-posts-head">
+            <div class="latest-posts-head-copy">
+              <h2>Calendar Events</h2>
+              <p class="release-manager-hint">Showing the 8 latest calendar events.</p>
+            </div>
+            <button type="button" class="admin-link-btn admin-link-btn-primary" onclick="openCreateReleaseModal()">New Event</button>
+          </div>
+          <ul id="release-events" class="posts-list"></ul>
+          <div class="posts-list-actions posts-list-actions-left">
+            <a href="/admin/events.html" class="admin-link-btn">See all events</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="dashboard-edit-overlay" class="post-edit-overlay" hidden>
+      <div class="post-edit-modal">
+        <div class="post-edit-head">
+          <h2 id="dashboard-post-edit-title">New Post</h2>
+          <button type="button" id="dashboard-edit-close" class="secondary">Close</button>
+        </div>
+
+        <form id="postForm" class="post-edit-form">
           <input type="hidden" id="postId">
-          
+
           <div class="form-group">
             <label>Title</label>
             <input id="title" type="text" placeholder="Post title" required>
@@ -111,50 +147,39 @@
             <div id="editor"></div>
           </div>
 
-          <div class="post-form-actions">
-            <button type="submit" id="save-post-btn" class="admin-save-btn">Save Post</button>
-            <button type="button" id="cancel-post-edit-btn" class="secondary" style="display:none;">Cancel Edit</button>
+          <div class="post-edit-actions">
+            <button type="submit" id="save-post-btn">Update Post</button>
+            <button type="button" id="cancel-post-edit-btn" class="secondary">Cancel Edit</button>
           </div>
         </form>
       </div>
+    </div>
 
-      <!-- Posts and Calendar -->
-      <div class="admin-side-grid">
-        <div class="admin-section">
-          <h2>Published Posts</h2>
-          <div class="posts-search-wrap">
-            <input id="posts-search" type="text" placeholder="Search by title or slug..." aria-label="Search published posts">
-          </div>
-          <ul id="posts" class="posts-list"></ul>
+    <div id="release-edit-overlay" class="post-edit-overlay" hidden>
+      <div class="post-edit-modal" role="dialog" aria-modal="true" aria-labelledby="release-edit-title">
+        <div class="post-edit-head">
+          <h2 id="release-edit-title">New Event</h2>
+          <button type="button" id="release-edit-close" class="secondary">Close</button>
         </div>
 
-        <div class="admin-section">
-          <h2>Calendar Events</h2>
-          <p class="release-manager-hint">Select a post and date, then publish it to the calendar.</p>
-
+        <form id="releaseEventForm" class="post-edit-form">
           <div class="form-group">
             <label for="release-post-select">Post</label>
-            <select id="release-post-select">
+            <select id="release-post-select" required>
               <option value="">Select post</option>
             </select>
           </div>
 
           <div class="form-group">
             <label for="release-date">Release Date</label>
-            <input id="release-date" type="date" />
+            <input id="release-date" type="date" required />
           </div>
 
-          <div class="release-manager-actions">
-            <button type="button" id="save-release-btn">Publish Event</button>
-            <button type="button" id="cancel-release-edit-btn" class="secondary" style="display:none;">Cancel Edit</button>
+          <div class="post-edit-actions">
+            <button type="submit" id="save-release-btn">Create Event</button>
+            <button type="button" id="cancel-release-edit-btn" class="secondary">Cancel</button>
           </div>
-
-          <div class="release-event-filters">
-            <input id="release-event-search" type="text" placeholder="Search events by title or slug..." aria-label="Search calendar events">
-          </div>
-
-          <ul id="release-events" class="posts-list"></ul>
-        </div>
+        </form>
       </div>
     </div>
   </div>
@@ -166,14 +191,13 @@
       <div class="brand-small">
         Antonios <span style="color:var(--accent)">Rusman</span>
       </div>
-      <div class="muted small">© <span id="year"></span> Antonios Rusman — All rights reserved.</div>
+      <div class="muted small">© <span id="year"></span> <a href="https://rusman.gr" target="_blank" rel="noopener">Antonios Rusman</a> — All rights reserved.</div>
     </div>
 
     <div class="footer-center">
       <nav class="footer-nav" aria-label="Footer navigation">
-        <a href="/">Home</a>
-        <a href="/admin/dashboard.html" data-staff-only>Dashboard</a>
-        <a href="/admin/profile.html" data-auth-link>Profile</a>
+        <a href="/tos.html">Terms of Service</a>
+        <a href="/privacy.html">Privacy Policy</a>
       </nav>
     </div>
 
@@ -225,19 +249,14 @@ window.addEventListener('DOMContentLoaded', updateThemeLabel);
 async function ensureStaffAccess() {
   const res = await fetch("/api/auth/profile");
   if (!res.ok) {
-    window.location.href = "/admin/login.html";
+    window.location.href = "/no-access.html";
     return;
   }
 
   const profile = await res.json();
   if (profile.role !== "staff") {
-    showStatus("This account does not have dashboard access.", "error");
-    const form = document.getElementById("postForm");
-    if (form) {
-      Array.from(form.elements).forEach(el => {
-        el.disabled = true;
-      });
-    }
+    window.location.href = "/no-access.html";
+    return;
   }
 }
 
@@ -246,7 +265,15 @@ let availableCategories = [];
 let selectedCategories = [];
 let allDashboardPosts = [];
 let releaseEditPostId = null;
+const DASHBOARD_POST_LIMIT = 7;
+const DASHBOARD_RELEASE_LIMIT = 8;
 const statusEl = document.getElementById("status");
+const dashboardEditOverlay = document.getElementById("dashboard-edit-overlay");
+const dashboardEditClose = document.getElementById("dashboard-edit-close");
+const dashboardPostEditTitle = document.getElementById("dashboard-post-edit-title");
+const releaseEditOverlay = document.getElementById("release-edit-overlay");
+const releaseEditClose = document.getElementById("release-edit-close");
+const releaseEditTitle = document.getElementById("release-edit-title");
 
 function showStatus(message, type) {
   if (!statusEl) return;
@@ -486,6 +513,13 @@ function normalizePostsSearch(value) {
   return String(value || "").toLowerCase().trim();
 }
 
+function getPostImageUrl(post) {
+  if (!Array.isArray(post?.content)) return "";
+  const imageBlock = post.content.find(block => block?.type === "image");
+  if (!imageBlock) return "";
+  return imageBlock?.data?.file?.url || imageBlock?.data?.url || imageBlock?.data?.file || "";
+}
+
 function getFilteredPosts() {
   const input = document.getElementById("posts-search");
   const query = normalizePostsSearch(input?.value);
@@ -503,23 +537,29 @@ function renderPostsList() {
   if (!list) return;
   list.innerHTML = "";
 
-  const filteredPosts = getFilteredPosts();
+  const latestPosts = [...allDashboardPosts]
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .slice(0, DASHBOARD_POST_LIMIT);
 
   if (!allDashboardPosts.length) {
     list.innerHTML = '<li style="padding: 16px; text-align: center; color: var(--text-muted);">No posts yet</li>';
     return;
   }
 
-  if (!filteredPosts.length) {
-    list.innerHTML = '<li style="padding: 16px; text-align: center; color: var(--text-muted);">No posts match your search</li>';
-    return;
-  }
-
-  filteredPosts.forEach(p => {
+  latestPosts.forEach(p => {
     const li = document.createElement("li");
-    li.className = "post-item";
+    const imageUrl = getPostImageUrl(p);
+    li.className = "post-item posts-page-item";
     li.innerHTML = `
-      <span class="post-item-title">${p.title}</span>
+      <div class="posts-page-main">
+        ${imageUrl
+          ? `<img src="${imageUrl}" alt="${p.title}" class="posts-page-thumb" />`
+          : '<div class="posts-page-thumb posts-page-thumb-placeholder" aria-hidden="true"></div>'}
+        <div class="posts-page-text">
+          <span class="post-item-title">${p.title}</span>
+          <span class="release-event-date">/${p.slug}</span>
+        </div>
+      </div>
       <div class="post-item-actions">
         <button class="secondary" onclick="editPost('${p.slug}')">Edit</button>
         <button class="danger" onclick="deletePost('${p._id}')">Delete</button>
@@ -637,19 +677,12 @@ function formatCalendarDate(value) {
 
 function renderReleaseEventsList() {
   const list = document.getElementById("release-events");
-  const searchInput = document.getElementById("release-event-search");
   if (!list) return;
-
-  const eventQuery = normalizePostsSearch(searchInput?.value);
 
   const events = allDashboardPosts
     .filter(post => !!post.includeInCalendar || !!post.releaseDate)
-    .filter(post => {
-      const title = normalizePostsSearch(post.title);
-      const slug = normalizePostsSearch(post.slug);
-      return !eventQuery || title.includes(eventQuery) || slug.includes(eventQuery);
-    })
-    .sort((a, b) => new Date(a.releaseDate || a.createdAt) - new Date(b.releaseDate || b.createdAt));
+    .sort((a, b) => new Date(b.releaseDate || b.createdAt) - new Date(a.releaseDate || a.createdAt))
+    .slice(0, DASHBOARD_RELEASE_LIMIT);
 
   list.innerHTML = "";
 
@@ -660,7 +693,7 @@ function renderReleaseEventsList() {
 
   events.forEach(post => {
     const li = document.createElement("li");
-    li.className = "post-item";
+    li.className = "post-item events-page-item";
     li.innerHTML = `
       <div class="release-event-main">
         <a class="post-item-title" href="/post.html?slug=${post.slug}" target="_blank" rel="noopener">${post.title}</a>
@@ -684,9 +717,27 @@ function resetReleaseForm() {
 
   if (postSelect) postSelect.value = "";
   if (dateInput) dateInput.value = "";
-  if (saveButton) saveButton.textContent = "Publish Event";
-  if (cancelButton) cancelButton.style.display = "none";
+  if (saveButton) saveButton.textContent = "Create Event";
+  if (cancelButton) cancelButton.textContent = "Cancel";
+  if (releaseEditTitle) releaseEditTitle.textContent = "New Event";
 }
+
+function openReleaseModal() {
+  if (!releaseEditOverlay) return;
+  releaseEditOverlay.hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function closeReleaseModal() {
+  if (!releaseEditOverlay) return;
+  releaseEditOverlay.hidden = true;
+  document.body.style.overflow = "";
+}
+
+window.openCreateReleaseModal = function openCreateReleaseModal() {
+  resetReleaseForm();
+  openReleaseModal();
+};
 
 window.editReleaseEvent = function editReleaseEvent(postId) {
   const post = allDashboardPosts.find(item => String(item._id) === String(postId));
@@ -701,7 +752,9 @@ window.editReleaseEvent = function editReleaseEvent(postId) {
   if (postSelect) postSelect.value = String(post._id);
   if (dateInput) dateInput.value = post.releaseDate ? new Date(post.releaseDate).toISOString().slice(0, 10) : "";
   if (saveButton) saveButton.textContent = "Update Event";
-  if (cancelButton) cancelButton.style.display = "inline-block";
+  if (cancelButton) cancelButton.textContent = "Cancel Edit";
+  if (releaseEditTitle) releaseEditTitle.textContent = "Edit Event";
+  openReleaseModal();
 };
 
 window.deleteReleaseEvent = async function deleteReleaseEvent(postId) {
@@ -766,8 +819,9 @@ async function saveReleaseEvent() {
     return;
   }
 
-  showStatus(releaseEditPostId ? "Calendar event updated." : "Calendar event published.", "success");
+  showStatus(releaseEditPostId ? "Calendar event updated." : "Calendar event created.", "success");
   resetReleaseForm();
+  closeReleaseModal();
   await loadPosts();
 }
 
@@ -785,11 +839,32 @@ async function editPost(slugValue) {
   const savePostButton = document.getElementById("save-post-btn");
   const cancelPostEditButton = document.getElementById("cancel-post-edit-btn");
   if (savePostButton) savePostButton.textContent = "Update Post";
+  if (cancelPostEditButton) cancelPostEditButton.textContent = "Cancel Edit";
+  if (dashboardPostEditTitle) dashboardPostEditTitle.textContent = "Edit Post";
   if (cancelPostEditButton) cancelPostEditButton.style.display = "inline-block";
 
   await editor.render({ blocks: post.content });
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (dashboardEditOverlay) {
+    dashboardEditOverlay.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+
   clearStatus();
+}
+
+async function openCreatePostModal() {
+  await cancelPostEdit();
+
+  const savePostButton = document.getElementById("save-post-btn");
+  const cancelPostEditButton = document.getElementById("cancel-post-edit-btn");
+  if (savePostButton) savePostButton.textContent = "Create Post";
+  if (cancelPostEditButton) cancelPostEditButton.textContent = "Cancel";
+  if (dashboardPostEditTitle) dashboardPostEditTitle.textContent = "New Post";
+
+  if (dashboardEditOverlay) {
+    dashboardEditOverlay.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
 }
 
 async function cancelPostEdit() {
@@ -801,8 +876,15 @@ async function cancelPostEdit() {
 
   const savePostButton = document.getElementById("save-post-btn");
   const cancelPostEditButton = document.getElementById("cancel-post-edit-btn");
-  if (savePostButton) savePostButton.textContent = "Save Post";
-  if (cancelPostEditButton) cancelPostEditButton.style.display = "none";
+  if (savePostButton) savePostButton.textContent = "Create Post";
+  if (cancelPostEditButton) cancelPostEditButton.textContent = "Cancel";
+  if (dashboardPostEditTitle) dashboardPostEditTitle.textContent = "New Post";
+  if (cancelPostEditButton) cancelPostEditButton.style.display = "inline-block";
+
+  if (dashboardEditOverlay) {
+    dashboardEditOverlay.hidden = true;
+    document.body.style.overflow = "";
+  }
 
   clearStatus();
 }
@@ -817,9 +899,23 @@ async function deletePost(id) {
   loadPosts();
 }
 
+async function openPostFromQuery() {
+  const params = new URLSearchParams(window.location.search);
+  const slugToEdit = params.get("edit");
+  if (!slugToEdit) return;
+
+  await editPost(slugToEdit);
+
+  params.delete("edit");
+  const nextQuery = params.toString();
+  const nextUrl = nextQuery ? `${window.location.pathname}?${nextQuery}` : window.location.pathname;
+  window.history.replaceState({}, "", nextUrl);
+}
+
 document.getElementById("postForm").addEventListener("submit", async e => {
   e.preventDefault();
   clearStatus();
+  const isUpdate = !!document.getElementById("postId").value;
 
   const data = await editor.save();
 
@@ -837,8 +933,8 @@ document.getElementById("postForm").addEventListener("submit", async e => {
     published: true
   };
 
-  const method = document.getElementById("postId").value ? "PUT" : "POST";
-  const url = document.getElementById("postId").value
+  const method = isUpdate ? "PUT" : "POST";
+  const url = isUpdate
     ? "/api/posts/" + document.getElementById("postId").value
     : "/api/posts";
 
@@ -849,7 +945,7 @@ document.getElementById("postForm").addEventListener("submit", async e => {
   });
 
   if (res.ok) {
-    showStatus("Post saved successfully.", "success");
+    showStatus(isUpdate ? "Post updated successfully." : "Post created successfully.", "success");
     window.scrollTo({ top: 0, behavior: 'smooth' });
     await cancelPostEdit();
     loadPosts();
@@ -874,11 +970,45 @@ document.getElementById("categorySelect").addEventListener("change", () => {
   if (select) select.value = "";
 });
 
-document.getElementById("posts-search")?.addEventListener("input", renderPostsList);
-document.getElementById("release-event-search")?.addEventListener("input", renderReleaseEventsList);
-document.getElementById("save-release-btn")?.addEventListener("click", saveReleaseEvent);
-document.getElementById("cancel-release-edit-btn")?.addEventListener("click", resetReleaseForm);
+document.getElementById("releaseEventForm")?.addEventListener("submit", async event => {
+  event.preventDefault();
+  await saveReleaseEvent();
+});
+document.getElementById("cancel-release-edit-btn")?.addEventListener("click", () => {
+  resetReleaseForm();
+  closeReleaseModal();
+});
+releaseEditClose?.addEventListener("click", () => {
+  resetReleaseForm();
+  closeReleaseModal();
+});
 document.getElementById("cancel-post-edit-btn")?.addEventListener("click", cancelPostEdit);
+dashboardEditClose?.addEventListener("click", cancelPostEdit);
+
+dashboardEditOverlay?.addEventListener("click", event => {
+  if (event.target === dashboardEditOverlay) {
+    cancelPostEdit();
+  }
+});
+
+releaseEditOverlay?.addEventListener("click", event => {
+  if (event.target === releaseEditOverlay) {
+    resetReleaseForm();
+    closeReleaseModal();
+  }
+});
+
+document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && releaseEditOverlay && !releaseEditOverlay.hidden) {
+    resetReleaseForm();
+    closeReleaseModal();
+    return;
+  }
+
+  if (event.key === "Escape" && dashboardEditOverlay && !dashboardEditOverlay.hidden) {
+    cancelPostEdit();
+  }
+});
 
 loadCategories();
 loadPosts();

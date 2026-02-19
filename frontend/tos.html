@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Terms of Service | Rusman</title>
+  <link rel="stylesheet" href="css/global.css" />
+  <style>
+    .legal-wrap {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .legal-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .legal-card h1 {
+      font-size: 1.9rem;
+      color: var(--text);
+      margin: 0;
+    }
+
+    .legal-card > header {
+      position: static;
+      top: auto;
+      z-index: auto;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      padding: 0;
+    }
+
+    .legal-meta {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .legal-card section {
+      display: grid;
+      gap: 8px;
+    }
+
+    .legal-card h2 {
+      font-size: 1.08rem;
+      margin: 0;
+      color: var(--text);
+    }
+
+    .legal-card p,
+    .legal-card li {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.65;
+    }
+
+    .legal-card ul {
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 6px;
+    }
+
+    @media (max-width: 768px) {
+      .legal-card {
+        padding: 18px;
+      }
+
+      .legal-card h1 {
+        font-size: 1.55rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <a href="/" class="logo">Rusman</a>
+    <button type="button" id="mobile-menu-toggle" class="mobile-menu-toggle" aria-label="Open menu" aria-controls="mobile-sidebar" aria-expanded="false">☰</button>
+    <nav>
+      <a href="/" class="nav-link">Home</a>
+      <a href="/admin/dashboard.html" class="nav-link" data-staff-only>Dashboard</a>
+      <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
+      <button id="theme-toggle"></button>
+    </nav>
+  </div>
+</header>
+
+<div id="mobile-sidebar-backdrop" class="mobile-sidebar-backdrop" hidden></div>
+<aside id="mobile-sidebar" class="mobile-sidebar" aria-label="Mobile navigation" aria-hidden="true">
+  <div class="mobile-sidebar-head">
+    <strong>Menu</strong>
+    <button type="button" id="mobile-sidebar-close" class="mobile-sidebar-close" aria-label="Close menu">✕</button>
+  </div>
+  <nav class="mobile-sidebar-nav">
+    <a href="/" class="nav-link">Home</a>
+    <a href="/admin/dashboard.html" class="nav-link" data-staff-only>Dashboard</a>
+    <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
+    <div class="mobile-theme-row">
+      <span>Theme</span>
+      <button type="button" id="mobile-theme-toggle" class="mobile-theme-switch" aria-label="Toggle theme"></button>
+    </div>
+  </nav>
+</aside>
+
+<main>
+  <div class="legal-wrap">
+    <article class="legal-card">
+      <header>
+        <h1>Terms of Service</h1>
+        <p class="legal-meta">Effective date: February 19, 2026</p>
+      </header>
+
+      <section>
+        <h2>1. Agreement to these Terms</h2>
+        <p>By accessing or using the Rusman website, you agree to these Terms of Service. If you do not agree, please do not use the website.</p>
+      </section>
+
+      <section>
+        <h2>2. Services and Eligibility</h2>
+        <p>Rusman provides blog content and account features, including commenting and profile management. You must provide accurate account information and keep your login credentials secure.</p>
+      </section>
+
+      <section>
+        <h2>3. Account Responsibilities</h2>
+        <ul>
+          <li>You are responsible for activity under your account.</li>
+          <li>You must not share your account in a way that risks unauthorized use.</li>
+          <li>You must notify us promptly if you suspect account compromise.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>4. Acceptable Use</h2>
+        <p>You agree not to misuse the website. This includes posting unlawful, abusive, defamatory, or harmful content; attempting unauthorized access; or interfering with normal operation.</p>
+      </section>
+
+      <section>
+        <h2>5. User Content (Comments and Profile Data)</h2>
+        <p>When you post comments, you grant us a non-exclusive right to display and process that content for site operation. You remain responsible for your submitted content and must have rights to share it.</p>
+      </section>
+
+      <section>
+        <h2>6. Intellectual Property</h2>
+        <p>Unless stated otherwise, website content, branding, and design are owned by or licensed to Rusman. You may not reproduce or redistribute protected content without permission.</p>
+      </section>
+
+      <section>
+        <h2>7. Service Availability and Changes</h2>
+        <p>We may update, suspend, or discontinue parts of the website at any time to maintain security, improve functionality, or comply with legal obligations.</p>
+      </section>
+
+      <section>
+        <h2>8. Disclaimer of Warranties</h2>
+        <p>The website is provided on an "as is" and "as available" basis. To the maximum extent permitted by law, we do not guarantee uninterrupted service or error-free operation.</p>
+      </section>
+
+      <section>
+        <h2>9. Limitation of Liability</h2>
+        <p>To the maximum extent permitted by law, Rusman is not liable for indirect, incidental, special, consequential, or punitive damages arising from use of the website.</p>
+      </section>
+
+      <section>
+        <h2>10. GDPR and Data Protection Commitment</h2>
+        <p>We handle personal data in accordance with our Privacy Policy and applicable data protection laws, including the GDPR where applicable. Your privacy rights and how to exercise them are described in the Privacy Policy.</p>
+      </section>
+
+      <section>
+        <h2>11. Termination</h2>
+        <p>We may limit or terminate access to protect the website, users, or legal compliance, including for violations of these Terms.</p>
+      </section>
+
+      <section>
+        <h2>12. Governing Law</h2>
+        <p>These Terms are governed by applicable laws in your operating jurisdiction unless mandatory consumer law states otherwise.</p>
+      </section>
+
+      <section>
+        <h2>13. Contact</h2>
+        <p>For terms-related questions, contact us at <a href="mailto:info@rusman.gr">info@rusman.gr</a>.</p>
+      </section>
+
+      <section>
+        <h2>14. Updates to these Terms</h2>
+        <p>We may update these Terms from time to time. Changes become effective when posted on this page with an updated effective date.</p>
+      </section>
+    </article>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div class="footer-left">
+      <div class="brand-small">
+        Antonios <span style="color:var(--accent)">Rusman</span>
+      </div>
+      <div class="muted small">© <span id="year"></span> <a href="https://rusman.gr" target="_blank" rel="noopener">Antonios Rusman</a> — All rights reserved.</div>
+    </div>
+
+    <div class="footer-center">
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <a href="/tos.html">Terms of Service</a>
+        <a href="/privacy.html">Privacy Policy</a>
+      </nav>
+    </div>
+
+    <div class="footer-right" aria-hidden="false">
+      <div class="social" role="list">
+        <a class="social-link" href="mailto:info@rusman.gr" aria-label="Email" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <path d="M3 6.5h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-11z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M21 6.5L12 13 3 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+
+        <a class="social-link" href="https://github.com/AntonisRsmn" target="_blank" rel="noopener" aria-label="GitHub" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <path d="M12 2C7.58 2 4 5.58 4 10c0 3.54 2.29 6.54 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.56 7.56 0 0 1 12 6.8c.68.003 1.36.092 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 20 10c0-4.42-3.58-8-8-8z" fill="currentColor"/>
+          </svg>
+        </a>
+
+        <a class="social-link" href="https://www.linkedin.com/in/antonis-rusman-a46424319/" target="_blank" rel="noopener" aria-label="LinkedIn" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M7.5 11.5v5M7.5 8.5v.01M12 16.5v-4c0-1 .6-1.5 1.4-1.5.8 0 1.6.5 1.6 1.6v3.9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+
+        <a class="social-link" href="https://instagram.com/_.rusman._" target="_blank" rel="noopener" aria-label="Instagram" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <rect x="3.5" y="3.5" width="17" height="17" rx="4" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="17.5" cy="6.5" r="0.6" fill="currentColor"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script src="js/theme.js"></script>
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+</script>
+</body>
+</html>

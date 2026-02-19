@@ -30,8 +30,12 @@ app.use("/api/comments", commentRoutes);
 
 // Serve frontend
 const frontendPath = path.join(__dirname, "..", "frontend");
+app.use("/admin", async (req, res, next) => {
+  const publicAdminPages = new Set(["/login.html", "/signup.html"]);
+  if (publicAdminPages.has(req.path)) {
+    return next();
+  }
 
-app.get("/admin/dashboard.html", async (req, res) => {
   const token = req.cookies.token;
   if (!token) {
     return res.redirect("/no-access.html");
@@ -47,7 +51,7 @@ app.get("/admin/dashboard.html", async (req, res) => {
     return res.redirect("/no-access.html");
   }
 
-  res.sendFile(path.join(frontendPath, "admin", "dashboard.html"));
+  return next();
 });
 
 app.use(express.static(frontendPath));

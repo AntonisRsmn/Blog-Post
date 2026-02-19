@@ -45,6 +45,24 @@
       <form id="signupForm" class="login-form">
         <div class="form-group">
           <input
+            type="text"
+            id="firstName"
+            placeholder="First name"
+            required
+            autocomplete="given-name"
+          />
+        </div>
+        <div class="form-group">
+          <input
+            type="text"
+            id="lastName"
+            placeholder="Last name"
+            required
+            autocomplete="family-name"
+          />
+        </div>
+        <div class="form-group">
+          <input
             type="email"
             id="email"
             placeholder="Email"
@@ -89,14 +107,13 @@
       <div class="brand-small">
         Antonios <span style="color:var(--accent)">Rusman</span>
       </div>
-      <div class="muted small">© <span id="year"></span> Antonios Rusman — All rights reserved.</div>
+      <div class="muted small">© <span id="year"></span> <a href="https://rusman.gr" target="_blank" rel="noopener">Antonios Rusman</a> — All rights reserved.</div>
     </div>
 
     <div class="footer-center">
       <nav class="footer-nav" aria-label="Footer navigation">
-        <a href="/">Home</a>
-        <a href="/admin/dashboard.html" data-staff-only>Dashboard</a>
-        <a href="/admin/profile.html" data-auth-link>Profile</a>
+        <a href="/tos.html">Terms of Service</a>
+        <a href="/privacy.html">Privacy Policy</a>
       </nav>
     </div>
 
@@ -148,12 +165,20 @@ window.addEventListener('DOMContentLoaded', updateThemeLabel);
 document.getElementById("signupForm").addEventListener("submit", async e => {
   e.preventDefault();
 
+  const firstName = document.getElementById("firstName").value.trim();
+  const lastName = document.getElementById("lastName").value.trim();
   const email = document.getElementById("email").value;
   const password = document.getElementById("password").value;
   const confirm = document.getElementById("confirm").value;
   const error = document.getElementById("error");
   error.textContent = "";
   error.classList.remove("show");
+
+  if (!firstName || !lastName) {
+    error.textContent = "First name and last name are required.";
+    error.classList.add("show");
+    return;
+  }
 
   // Validate password strength
   const hasLetter = /[a-zA-Z]/.test(password);
@@ -176,7 +201,7 @@ document.getElementById("signupForm").addEventListener("submit", async e => {
   const res = await fetch("/api/auth/signup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify({ firstName, lastName, email, password })
   });
 
   if (!res.ok) {

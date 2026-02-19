@@ -20,10 +20,17 @@ function resolveRole(email) {
 }
 
 router.post("/signup", async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, firstName, lastName } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: "Email and password are required" });
+  if (!email || !password || !firstName || !lastName) {
+    return res.status(400).json({ error: "First name, last name, email, and password are required" });
+  }
+
+  const normalizedFirstName = String(firstName || "").trim();
+  const normalizedLastName = String(lastName || "").trim();
+
+  if (!normalizedFirstName || !normalizedLastName) {
+    return res.status(400).json({ error: "First name and last name are required" });
   }
 
   // Validate password strength
@@ -45,7 +52,13 @@ router.post("/signup", async (req, res) => {
 
   const passwordHash = await bcrypt.hash(password, 12);
   const role = resolveRole(email);
-  const user = await User.create({ email, passwordHash, role });
+  const user = await User.create({
+    email,
+    passwordHash,
+    role,
+    firstName: normalizedFirstName,
+    lastName: normalizedLastName
+  });
 
   const token = jwt.sign({ userId: user._id, email: user.email, role: user.role }, process.env.JWT_SECRET, {
     expiresIn: "2h"
@@ -93,11 +106,13 @@ router.post("/login", async (req, res) => {
 });
 
 router.get("/profile", auth, async (req, res) => {
-  const user = await User.findById(req.user.userId).select("email username avatarUrl role");
+  const user = await User.findById(req.user.userId).select("email firstName lastName username avatarUrl role");
   if (!user) return res.status(404).json({ error: "User not found" });
   res.json({
     _id: user._id,
     email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
     username: user.username,
     avatarUrl: user.avatarUrl,
     role: user.role
@@ -105,8 +120,16 @@ router.get("/profile", auth, async (req, res) => {
 });
 
 router.put("/profile", auth, async (req, res) => {
-  const { username, avatarUrl } = req.body;
+  const { firstName, lastName, username, avatarUrl } = req.body;
   const updates = {};
+
+  if (typeof firstName === "string") {
+    updates.firstName = firstName.trim();
+  }
+
+  if (typeof lastName === "string") {
+    updates.lastName = lastName.trim();
+  }
 
   if (typeof username === "string") {
     updates.username = username.trim();
@@ -118,11 +141,13 @@ router.put("/profile", auth, async (req, res) => {
 
   const user = await User.findByIdAndUpdate(req.user.userId, updates, {
     new: true
-  }).select("email username avatarUrl role");
+  }).select("email firstName lastName username avatarUrl role");
 
   res.json({
     _id: user._id,
     email: user.email,
+    firstName: user.firstName,
+    lastName: user.lastName,
     username: user.username,
     avatarUrl: user.avatarUrl,
     role: user.role
