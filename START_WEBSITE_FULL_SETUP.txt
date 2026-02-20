@@ -1,0 +1,171 @@
+BLOG WEBSITE - FULL STARTUP & DEPLOYMENT CHECKLIST (LOCAL + RENDER)
+=================================================================
+
+This file contains everything needed to run the website correctly end-to-end.
+
+--------------------------------------------------
+1) REQUIRED APPS / ACCOUNTS
+--------------------------------------------------
+Install these first:
+
+- Node.js 22 LTS (recommended)
+- npm (comes with Node.js)
+- Git
+- VS Code (optional, recommended)
+
+Create/prepare these services:
+
+- MongoDB Atlas database
+- Cloudinary account (for image uploads)
+- Render account (for production hosting)
+
+--------------------------------------------------
+2) PROJECT STRUCTURE OVERVIEW
+--------------------------------------------------
+- Frontend static files: /frontend
+- Backend server: /server/server.js
+- API routes: /server/routes/*.js
+
+Start command:
+- npm start
+(uses: node server/server.js)
+
+--------------------------------------------------
+3) INSTALL DEPENDENCIES
+--------------------------------------------------
+From project root:
+
+- npm install
+
+If install fails:
+- delete node_modules + package-lock.json
+- run npm install again
+
+--------------------------------------------------
+4) REQUIRED ENV VARIABLES (.env)
+--------------------------------------------------
+Create .env in project root with:
+
+PORT=3000
+MONGO_URI=<your_mongodb_connection_string>
+JWT_SECRET=<very_long_random_secret_at_least_32_chars>
+ADMIN_PASSWORD_HASH=<bcrypt_hash>
+CLOUDINARY_CLOUD_NAME=<cloud_name>
+CLOUDINARY_API_KEY=<api_key>
+CLOUDINARY_API_SECRET=<api_secret>
+STAFF_EMAILS=<comma_separated_admin_emails>
+
+IMPORTANT:
+- JWT_SECRET must be at least 32 characters
+- Do NOT wrap values in quotes unless needed
+- Do NOT commit .env to git
+
+Quick JWT secret generator:
+- node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
+
+--------------------------------------------------
+5) RUN LOCALLY
+--------------------------------------------------
+From project root:
+
+- npm start
+
+Expected output:
+- Server running on port 3000
+- MongoDB connected
+
+Open in browser:
+- http://localhost:3000
+- Admin pages under /admin/*.html
+
+--------------------------------------------------
+6) IF LOCAL START FAILS
+--------------------------------------------------
+A) Error: "JWT_SECRET must be at least 32 characters long"
+- Fix JWT_SECRET in .env (length >= 32)
+
+B) Port already in use
+- Stop old node processes
+- Restart with npm start
+
+C) Mongo connection error
+- Check MONGO_URI
+- Ensure Atlas IP access/network rules allow your connection
+
+D) Random old behavior after code changes
+- Ensure only one server process is running
+- Hard refresh browser (Ctrl+F5)
+
+--------------------------------------------------
+7) CATEGORY PERMISSION BEHAVIOR (CURRENT)
+--------------------------------------------------
+- Admin and Staff can:
+  - view categories
+  - create categories
+  - delete categories
+- Category editing/renaming is disabled
+
+If behavior seems old/stale:
+- restart server
+- hard refresh browser
+
+--------------------------------------------------
+8) RENDER DEPLOYMENT SETTINGS
+--------------------------------------------------
+Service type:
+- Web Service (Node)
+
+Build command:
+- npm install
+
+Start command:
+- npm start
+
+Environment variables in Render:
+- PORT=3000 (or Render-provided PORT)
+- MONGO_URI
+- JWT_SECRET (>= 32 chars)
+- ADMIN_PASSWORD_HASH
+- CLOUDINARY_CLOUD_NAME
+- CLOUDINARY_API_KEY
+- CLOUDINARY_API_SECRET
+- STAFF_EMAILS
+
+If Render log shows JWT error:
+- update JWT_SECRET in Render Environment
+- redeploy
+
+--------------------------------------------------
+9) PRODUCTION CHECKLIST
+--------------------------------------------------
+After deploy, verify:
+
+- Home page loads
+- Posts API works (/api/posts)
+- Categories API works (/api/categories)
+- Login works
+- Admin/Staff role restrictions work
+- Image upload works (Cloudinary)
+
+--------------------------------------------------
+10) QUICK HEALTH TESTS
+--------------------------------------------------
+In browser:
+- /api/posts?list=1
+- /api/categories
+
+PowerShell examples:
+- Invoke-RestMethod -Uri "http://localhost:3000/api/posts?list=1"
+- Invoke-RestMethod -Uri "http://localhost:3000/api/categories"
+
+--------------------------------------------------
+11) SECURITY REMINDER
+--------------------------------------------------
+Rotate these if they were ever exposed:
+- JWT_SECRET
+- CLOUDINARY_API_SECRET
+- Database password in MONGO_URI
+
+--------------------------------------------------
+END
+--------------------------------------------------
