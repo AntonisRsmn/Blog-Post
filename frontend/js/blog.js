@@ -651,10 +651,89 @@ async function loadPost() {
     <div class="article-meta">
       ${metaHtml}
     </div>
+    <div class="article-summary-tools">
+      <button type="button" id="article-generate-summary" class="article-summary-btn">Generate Summary</button>
+    </div>
+    <div id="article-summary-box" class="article-summary-box" hidden>
+      <div class="article-summary-title">AI Summary</div>
+      <p id="article-summary" class="article-summary"></p>
+    </div>
     <div class="article-content">
       ${bodyHtml}
     </div>
   `;
+
+  const summaryButton = container.querySelector("#article-generate-summary");
+  const summaryBox = container.querySelector("#article-summary-box");
+  const summaryElement = container.querySelector("#article-summary");
+  const summaryId = String(post?._id || post?.slug || "").trim();
+  const summaryLockKey = `article-summary-locked:${summaryId}`;
+  const summaryTextKey = `article-summary-text:${summaryId}`;
+
+  try {
+    const isLocked = summaryId && localStorage.getItem(summaryLockKey) === "1";
+    if (isLocked && summaryButton) {
+      summaryButton.disabled = true;
+      summaryButton.textContent = "Summary Generated";
+
+      const savedSummary = localStorage.getItem(summaryTextKey) || "";
+      if (savedSummary && summaryElement) {
+        summaryElement.textContent = savedSummary;
+        if (summaryBox) summaryBox.hidden = false;
+      }
+    }
+  } catch {
+  }
+
+  summaryButton?.addEventListener("click", async () => {
+    if (!summaryElement || !summaryButton) return;
+    if (summaryButton.disabled) return;
+
+    try {
+      if (summaryId) {
+        localStorage.setItem(summaryLockKey, "1");
+      }
+    } catch {
+    }
+
+    summaryButton.disabled = true;
+    summaryButton.textContent = "Generating...";
+
+    try {
+      const response = await fetch("/api/posts/summarize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: post._id, slug: post.slug })
+      });
+
+      if (!response.ok) {
+        summaryElement.textContent = "Could not generate summary right now.";
+        if (summaryBox) summaryBox.hidden = false;
+        summaryButton.textContent = "Summary Generated";
+        return;
+      }
+
+      const payload = await response.json().catch(() => ({}));
+      const summary = String(payload?.summary || "").trim();
+      const source = String(payload?.source || "").toLowerCase();
+      const suffix = source === "ai" ? "" : " (Auto)";
+
+      summaryElement.textContent = summary || "Summary is not available for this post.";
+      if (summaryBox) summaryBox.hidden = false;
+      summaryButton.textContent = "Summary Generated";
+
+      try {
+        if (summaryId) {
+          localStorage.setItem(summaryTextKey, summaryElement.textContent || "");
+        }
+      } catch {
+      }
+    } catch {
+      summaryElement.textContent = "Could not generate summary right now.";
+      if (summaryBox) summaryBox.hidden = false;
+      summaryButton.textContent = "Summary Generated";
+    }
+  });
 
   loadTwitterWidgets(container);
 

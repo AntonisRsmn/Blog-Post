@@ -167,5 +167,32 @@ Rotate these if they were ever exposed:
 - Database password in MONGO_URI
 
 --------------------------------------------------
+12) FREE-TIER AI SUMMARY (OPTIONAL)
+--------------------------------------------------
+The post page summary button supports free-tier AI.
+
+Recommended free-tier provider:
+- Groq
+
+Set these env vars:
+- AI_PROVIDER=groq
+- GROQ_API_KEY=<your_groq_key>
+- GROQ_MODEL=llama-3.1-8b-instant
+
+Optional paid/alternate provider:
+- AI_PROVIDER=openai
+- OPENAI_API_KEY=<your_openai_key>
+- OPENAI_MODEL=gpt-4o-mini
+
+Default behavior if no AI key is set:
+- The app falls back to an automatic local summary.
+
+Current summary behavior:
+- Viewer clicks summary button on post page.
+- Summary is generated in Greek.
+- Button is one-time per post per browser (stored in localStorage).
+- Backend endpoint has safety rate limit (5 requests/hour per IP).
+
+--------------------------------------------------
 END
 --------------------------------------------------

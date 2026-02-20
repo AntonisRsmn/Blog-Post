@@ -164,6 +164,10 @@
             <div id="editor"></div>
           </div>
 
+          <div class="form-group">
+            <textarea id="post-summary" rows="3" maxlength="220" hidden></textarea>
+          </div>
+
           <div class="post-edit-actions">
             <button type="submit" id="save-post-btn">Update Post</button>
             <button type="button" id="cancel-post-edit-btn" class="secondary">Cancel Edit</button>
@@ -326,6 +330,7 @@ const categoryOldNameInput = document.getElementById("category-old-name");
 const categoryNameInput = document.getElementById("category-name-input");
 const saveCategoryButton = document.getElementById("save-category-btn");
 const dashboardNewCategoryButton = document.getElementById("dashboard-new-category-btn");
+const postSummaryInput = document.getElementById("post-summary");
 
 function showStatus(message, type) {
   if (!statusEl) return;
@@ -630,6 +635,19 @@ function inferReleaseDateFromBlocks(blocks) {
   const values = [];
   collectTextValues(blocks, values);
   return parseDateFromText(values.join(" "));
+}
+
+function generateSummaryFromBlocks(blocks) {
+  const values = [];
+  collectTextValues(blocks, values);
+  const normalized = values
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) return "";
+  if (normalized.length <= 180) return normalized;
+  return `${normalized.slice(0, 177).trimEnd()}...`;
 }
 
 function updateCalendarUx() {
@@ -1056,6 +1074,9 @@ async function editPostById(postId) {
   document.getElementById("postId").value = post._id;
   document.getElementById("title").value = post.title;
   document.getElementById("slug").value = post.slug;
+  if (postSummaryInput) {
+    postSummaryInput.value = String(post.excerpt || "").trim() || generateSummaryFromBlocks(post.content || []);
+  }
   setSelectedCategories(Array.isArray(post.categories) ? post.categories : []);
 
   const savePostButton = document.getElementById("save-post-btn");
@@ -1158,7 +1179,7 @@ document.getElementById("postForm").addEventListener("submit", async e => {
     title: titleValue,
     slug: slugValue,
     categories: selectedCategories,
-    excerpt: data.blocks[0]?.data?.text?.slice(0, 100) || "",
+    excerpt: String(postSummaryInput?.value || "").trim() || generateSummaryFromBlocks(data.blocks),
     content: data.blocks,
     published: true
   };

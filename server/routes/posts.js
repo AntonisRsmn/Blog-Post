@@ -4,8 +4,17 @@ const auth = require("../middleware/auth");
 const requireUploaderOrStaff = require("../middleware/requireUploaderOrStaff");
 const User = require("../models/User");
 const mongoose = require("mongoose");
+const rateLimit = require("express-rate-limit");
 
 const router = express.Router();
+
+const summarizeLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Summary limit reached. Try again later." }
+});
 
 function sanitizeText(value, maxLength = 300) {
   return String(value || "")
@@ -175,6 +184,142 @@ function userOwnsPost(user, post) {
   return false;
 }
 
+function collectTextValues(value, result) {
+  if (typeof value === "string") {
+    result.push(value.replace(/<[^>]*>/g, " "));
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach(item => collectTextValues(item, result));
+    return;
+  }
+
+  if (value && typeof value === "object") {
+    Object.values(value).forEach(item => collectTextValues(item, result));
+  }
+}
+
+function extractPostPlainText(post) {
+  const values = [];
+  collectTextValues(post?.content || [], values);
+
+  return values
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function buildFallbackSummary(post) {
+  const excerpt = sanitizeText(post?.excerpt, 280);
+  if (excerpt) return excerpt;
+
+  const body = extractPostPlainText(post);
+  if (!body) return "Η σύνοψη δεν είναι διαθέσιμη για αυτό το άρθρο ακόμα.";
+  if (body.length <= 280) return body;
+  return `${body.slice(0, 277).trimEnd()}...`;
+}
+
+async function generateAiSummary(post) {
+  const providerSetting = String(process.env.AI_PROVIDER || "auto").trim().toLowerCase();
+  const groqApiKey = String(process.env.GROQ_API_KEY || "").trim();
+  const openAiApiKey = String(process.env.OPENAI_API_KEY || "").trim();
+
+  const providers = [];
+  const addGroq = () => {
+    if (!groqApiKey) return;
+    providers.push({
+      name: "groq",
+      url: "https://api.groq.com/openai/v1/chat/completions",
+      apiKey: groqApiKey,
+      model: String(process.env.GROQ_MODEL || "llama-3.1-8b-instant").trim()
+    });
+  };
+  const addOpenAi = () => {
+    if (!openAiApiKey) return;
+    providers.push({
+      name: "openai",
+      url: "https://api.openai.com/v1/chat/completions",
+      apiKey: openAiApiKey,
+      model: String(process.env.OPENAI_MODEL || "gpt-4o-mini").trim()
+    });
+  };
+
+  if (providerSetting === "groq") {
+    addGroq();
+  } else if (providerSetting === "openai") {
+    addOpenAi();
+  } else {
+    addGroq();
+    addOpenAi();
+  }
+
+  if (!providers.length) {
+    return { summary: buildFallbackSummary(post), source: "fallback" };
+  }
+
+  const title = sanitizeText(post?.title, 200);
+  const excerpt = sanitizeText(post?.excerpt, 400);
+  const contentText = extractPostPlainText(post).slice(0, 7000);
+
+  const prompt = [
+    `Title: ${title}`,
+    excerpt ? `Existing excerpt: ${excerpt}` : "",
+    `Content: ${contentText}`
+  ].filter(Boolean).join("\n\n");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 12000);
+
+  try {
+    for (const provider of providers) {
+      const response = await fetch(provider.url, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${provider.apiKey}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          model: provider.model,
+          temperature: 0.3,
+          max_tokens: 180,
+          messages: [
+            {
+              role: "system",
+              content: "Δημιουργείς σύντομες περιλήψεις άρθρων για αναγνώστες ιστοσελίδας. Η απάντηση ΠΑΝΤΑ στα Ελληνικά. Κράτα το κείμενο σαφές και αντικειμενικό, 2 έως 4 μικρές προτάσεις, χωρίς bullets."
+            },
+            {
+              role: "user",
+              content: prompt
+            }
+          ]
+        }),
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        continue;
+      }
+
+      const payload = await response.json().catch(() => ({}));
+      const raw = payload?.choices?.[0]?.message?.content;
+      const summary = sanitizeText(raw, 520);
+
+      if (!summary) {
+        continue;
+      }
+
+      return { summary, source: provider.name };
+    }
+
+    return { summary: buildFallbackSummary(post), source: "fallback" };
+  } catch {
+    return { summary: buildFallbackSummary(post), source: "fallback" };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 /* ---------- PUBLIC ---------- */
 
 // Get all published posts
@@ -279,6 +424,31 @@ router.get("/by-id/:id", async (req, res) => {
   const post = await Post.findOne({ _id: req.params.id, published: true });
   if (!post) return res.status(404).json({ error: "Not found" });
   return res.json(normalizePostCategoriesForOutput(post.toObject()));
+});
+
+router.post("/summarize", summarizeLimiter, async (req, res) => {
+  const rawId = String(req.body?.id || "").trim();
+  const rawSlug = sanitizeText(req.body?.slug, 180);
+
+  let post = null;
+
+  if (rawId && mongoose.Types.ObjectId.isValid(rawId)) {
+    post = await Post.findOne({ _id: rawId, published: true }).lean();
+  }
+
+  if (!post && rawSlug) {
+    post = await Post.findOne({ slug: rawSlug, published: true }).lean();
+    if (!post) {
+      post = await Post.findOne({ slug: rawSlug.toLowerCase(), published: true }).lean();
+    }
+  }
+
+  if (!post) {
+    return res.status(404).json({ error: "Post not found." });
+  }
+
+  const result = await generateAiSummary(post);
+  return res.json(result);
 });
 
 router.get("/manage/:id", auth, requireUploaderOrStaff, async (req, res) => {

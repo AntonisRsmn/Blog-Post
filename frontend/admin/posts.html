@@ -107,6 +107,10 @@
           <div id="posts-editor"></div>
         </div>
 
+        <div class="form-group">
+          <textarea id="post-edit-summary" rows="3" maxlength="220" hidden></textarea>
+        </div>
+
         <div class="post-edit-actions">
           <button type="submit" id="post-edit-save">Create Post</button>
           <button type="button" id="post-edit-cancel" class="secondary">Cancel</button>
@@ -184,6 +188,7 @@ const editTitleInput = document.getElementById("post-edit-title-input");
 const editSlugInput = document.getElementById("post-edit-slug");
 const editCategoriesInput = document.getElementById("post-edit-categories");
 const editIdInput = document.getElementById("post-edit-id");
+const editSummaryInput = document.getElementById("post-edit-summary");
 
 function showStatus(message, type) {
   if (!statusEl) return;
@@ -213,6 +218,35 @@ function parseCategories(value) {
     .filter(Boolean);
 
   return [...new Set(normalized)];
+}
+
+function collectTextValues(value, result) {
+  if (typeof value === "string") {
+    result.push(value.replace(/<[^>]*>/g, " "));
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach(item => collectTextValues(item, result));
+    return;
+  }
+
+  if (value && typeof value === "object") {
+    Object.values(value).forEach(item => collectTextValues(item, result));
+  }
+}
+
+function generateSummaryFromBlocks(blocks) {
+  const values = [];
+  collectTextValues(blocks, values);
+  const normalized = values
+    .join(" ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalized) return "";
+  if (normalized.length <= 180) return normalized;
+  return `${normalized.slice(0, 177).trimEnd()}...`;
 }
 
 async function ensurePostEditor() {
@@ -418,6 +452,9 @@ async function editPostById(postId) {
   editTitleInput.value = post.title || "";
   editSlugInput.value = post.slug || "";
   editCategoriesInput.value = Array.isArray(post.categories) ? post.categories.join(", ") : "";
+  if (editSummaryInput) {
+    editSummaryInput.value = String(post.excerpt || "").trim() || generateSummaryFromBlocks(post.content || []);
+  }
   isSlugManuallyEdited = false;
   if (editModalTitle) editModalTitle.textContent = "Edit Post";
   const saveButton = document.getElementById("post-edit-save");
@@ -501,7 +538,7 @@ editForm?.addEventListener("submit", async event => {
     title,
     slug,
     categories,
-    excerpt: blocks.blocks?.[0]?.data?.text?.slice(0, 100) || "",
+    excerpt: String(editSummaryInput?.value || "").trim() || generateSummaryFromBlocks(blocks.blocks),
     content: blocks.blocks,
     published: true
   };

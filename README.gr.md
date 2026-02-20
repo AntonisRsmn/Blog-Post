@@ -1,405 +1,117 @@
-# Πλατφόρμα Blog Rusman — Πλήρης Τεκμηρίωση (Ελληνικά)
+# Πλατφόρμα Blog Rusman (Τρέχουσα Τεκμηρίωση)
 
-Αυτό το repository περιέχει μια full-stack πλατφόρμα blog με:
-- Δημόσια προβολή άρθρων
-- Αναζήτηση, φίλτρα κατηγοριών και ημερολόγιο κυκλοφοριών
-- Authentication χρηστών και διαχείριση προφίλ
-- Σύστημα σχολίων με κανόνες moderation
-- Staff-only admin dashboard για διαχείριση άρθρων και calendar events
+Αυτό το repository περιέχει full-stack πλατφόρμα blog με δημόσιο περιεχόμενο, λογαριασμούς χρηστών, σχόλια και εργαλεία διαχείρισης για admin/staff.
 
-## 1) Τι κάνει το website
+## Τι κάνει το website
 
-### Επισκέπτες μπορούν να:
-- Ανοίξουν την αρχική σελίδα και να δουν δημοσιευμένα άρθρα
-- Κάνουν αναζήτηση με τίτλο, excerpt, author, slug και κατηγορία
-- Φιλτράρουν άρθρα ανά κατηγορία
-- Ανοίξουν τη σελίδα ενός άρθρου
-- Δουν ημερολόγιο κυκλοφοριών (`Game` / `Tech`)
-- Αλλάξουν theme (light/dark)
+### Δημόσιοι επισκέπτες
+- Προβολή δημοσιευμένων άρθρων στην αρχική
+- Αναζήτηση και φίλτρα κατηγοριών
+- Ανάγνωση πλήρους άρθρου (Editor.js περιεχόμενο: κείμενο, εικόνες, embeds, quotes)
+- Προβολή release calendar
+- Κλικ στο **Generate Summary** στη σελίδα άρθρου για δημιουργία ελληνικής σύνοψης μέσα σε εμφανές box
 
-### Συνδεδεμένοι χρήστες μπορούν να:
-- Ανοίξουν τη σελίδα προφίλ
-- Αλλάξουν first name, last name, username και avatar URL
-- Ανεβάσουν avatar εικόνα
-- Αλλάξουν κωδικό
-- Δημοσιεύσουν σχόλια
-- Διαγράψουν τα δικά τους σχόλια
-
-### Staff χρήστες επιπλέον μπορούν να:
-- Μπουν στα `/admin/*` management pages (`dashboard.html`, `posts.html`, `events.html`)
-- Δημιουργήσουν, επεξεργαστούν και διαγράψουν άρθρα
-- Ορίσουν και διαχειριστούν κατηγορίες
-- Ανεβάσουν εικόνες μέσα από Editor.js
-- Δημοσιεύσουν/ενημερώσουν calendar events (ημερομηνία κυκλοφορίας)
-- Διαγράψουν calendar events
-- Διαγράψουν οποιοδήποτε σχόλιο (μέσω role permissions)
-
----
-
-## 2) Αρχιτεκτονική
-
-### Frontend
-- Στατικά HTML/CSS/JS αρχεία στο `frontend/`
-- Χωρίς framework (vanilla JavaScript)
-- Theme + auth-aware links στο `frontend/js/theme.js`
-- Home/search/calendar λογική στο `frontend/js/blog.js`
-- Το κύριο logic του dashboard είναι inline στο `frontend/admin/dashboard.html`
-
-### Backend
-- Node.js + Express (API και static serving)
-- MongoDB μέσω Mongoose
-- JWT authentication σε `httpOnly` cookie
-- Password hashing με bcrypt
-- Upload εικόνων με Multer memory storage + Cloudinary
-
-Entry point:
-- `server/server.js`
-
----
-
-## 3) Δομή repository
-
-- `frontend/`
-  - Public pages: `index.html`, `post.html`, `no-access.html`, `tos.html`, `privacy.html`
-  - Admin pages: `admin/dashboard.html`, `admin/posts.html`, `admin/events.html`, `admin/login.html`, `admin/signup.html`, `admin/profile.html`
-  - Styles: `css/*.css`
-  - Scripts: `js/theme.js`, `js/blog.js`, `js/api.js`, `js/admin.js`
-- `server/`
-  - `server.js` (bootstrap του Express app)
-  - `models/` (`User`, `Post`, `Comment`, `Category`, `Admin`)
-  - `routes/` (`auth`, `posts`, `comments`, `categories`, `releases`, `upload`)
-  - `middleware/` (`auth`, `requireStaff`)
-
----
-
-## 4) Μοντέλα δεδομένων
-
-## `User`
-Πεδία:
-- `email` (unique, required)
-- `passwordHash` (required)
-- `firstName` (προαιρετικό string)
-- `lastName` (προαιρετικό string)
-- `username` (προαιρετικό string)
-- `avatarUrl` (προαιρετικό string)
-- `role` (`commenter` ή `staff`)
-- timestamps
-
-## `Post`
-Πεδία:
-- `title` (required)
-- `author`, `authorId`
-- `categories` (array από strings)
-- `releaseDate` (προαιρετικό date)
-- `releaseType` (`Game`, `Tech` ή κενό)
-- `includeInCalendar` (boolean)
-- `slug` (unique, required)
-- `excerpt`
-- `content` (array από Editor.js blocks)
-- `published` (boolean)
-- timestamps
-
-## `Comment`
-Πεδία:
-- `postId`, `userId`
-- `authorName`, `authorAvatar`
-- `text`
-- timestamps
-
-## `Category`
-Πεδία:
-- `name` (unique, required)
-- timestamps
-
-- Υπάρχει `Admin` model, αλλά η ενεργή auth/authorization ροή βασίζεται στο `User.role`.
-- Όταν δεν υπάρχουν categories, γίνεται auto-seed των default κατηγοριών.
-
----
-
-## 5) Authentication και εξουσιοδότηση
-
-## Session/auth τρόπος
-- Στο signup/login δημιουργείται JWT με `JWT_SECRET`
-- Το token αποθηκεύεται σε cookie `token` με:
-  - `httpOnly: true`
-  - `sameSite: "strict"`
-  - `secure: true` μόνο σε production
-- Το middleware `auth` κάνει verify το token και βάζει `req.user`
-
-## Role model
-- Το role προκύπτει από τη μεταβλητή `STAFF_EMAILS`
-- Αν το email ανήκει στο `STAFF_EMAILS` => `staff`, αλλιώς `commenter`
-- Το middleware `requireStaff` προστατεύει staff-only endpoints
-
-## Protected περιοχή
-- Όλες οι σελίδες `/admin/*` προστατεύονται server-side στο `server.js`
-- Εξαιρέσεις: τα `/admin/login.html` και `/admin/signup.html` παραμένουν δημόσια
-- Μη-staff χρήστες γίνονται redirect στο `/no-access.html`
-
----
-
-## 6) API τεκμηρίωση
-
-Base path: `/api`
-
-## Auth routes (`/api/auth`)
-- `POST /signup`
-  - Body: `{ firstName, lastName, email, password }`
-  - Έλεγχος ισχυρού password (>=8, γράμμα, αριθμός, σύμβολο)
-  - Δημιουργία χρήστη, set auth cookie
-- `POST /login`
-  - Body: `{ email, password }`
-  - Έλεγχος credentials, refresh role από `STAFF_EMAILS`, set auth cookie
-- `GET /profile` (auth required)
-  - Επιστρέφει `_id`, `email`, `firstName`, `lastName`, `username`, `avatarUrl`, `role`
-- `PUT /profile` (auth required)
-  - Body με `firstName`, `lastName`, `username`, `avatarUrl`
-- `PUT /password` (auth required)
-  - Body: `{ currentPassword, newPassword }`
-- `POST /logout`
-  - Καθαρίζει auth cookie
-
-## Posts routes (`/api/posts`)
-- `GET /`
-  - Όλα τα published posts
-- `GET /:slug`
-  - Ένα post από slug
-- `POST /` (auth + staff)
-  - Δημιουργία post
-- `PUT /:id` (auth + staff)
-  - Ενημέρωση post
-- `DELETE /:id` (auth + staff)
-  - Διαγραφή post
-
-## Categories routes (`/api/categories`)
-- `GET /`
-  - Συνδυάζει categories από collection + posts
-- `POST /` (auth + staff)
-  - Body: `{ name }`
-  - Upsert category
-- `DELETE /:name` (auth + staff)
-  - Διαγράφει category και την αφαιρεί από posts
-
-## Comments routes (`/api/comments`)
-- `GET /:postId`
-  - Επιστρέφει σχόλια post (νεότερα πρώτα)
-- `POST /:postId` (auth required)
-  - Body: `{ text }`
-  - Δημιουργία σχολίου με identity του user
-- `DELETE /:commentId` (auth required)
-  - Επιτρέπεται σε owner του σχολίου ή staff
-
-## Releases routes (`/api/releases`)
-- `GET /`
-  - Χτίζει release feed από posts με `includeInCalendar: true`
-  - Χρησιμοποιεί `releaseDate` ή κάνει date inference από κείμενο
-  - Επιστρέφει μέχρι 120 items (κόβει πολύ παλιά)
-
-## Upload route (`/api/upload`)
-- `POST /` (auth + staff)
-  - Multipart form-data με `image`
-  - Μέγιστο 5MB
-  - Upload σε Cloudinary folder `blog`
-  - Επιστρέφει `{ url }`
-
----
-
-## 7) Σελίδες frontend και λειτουργία
-
-## `frontend/index.html`
-- Home page με:
-  - Search bar και shortcuts (`/`, `Ctrl/Cmd+K`, `Esc`)
-  - Category filter panel
-  - Release calendar panel
-  - Pagination για latest και ανά κατηγορία
-
-## `frontend/post.html`
-- Rendering άρθρου από Editor.js blocks:
-  - Paragraphs
-  - Images
-  - YouTube embeds
-- Section σχολίων με login requirement για posting
-
-## `frontend/admin/login.html`
-- Login με email/password
-- Redirect: staff -> dashboard, άλλοι -> profile
-
-## `frontend/admin/signup.html`
-- Signup με password strength validation
-
-## `frontend/admin/profile.html`
-- Προβολή/ενημέρωση first name, last name, username και avatar URL
-- Upload avatar μέσω `/api/upload`
+### Συνδεδεμένοι χρήστες
+- Πρόσβαση στη σελίδα προφίλ
+- Ενημέρωση στοιχείων προφίλ και avatar URL
 - Αλλαγή κωδικού
-- Logout
+- Προσθήκη σχολίων
+- Διαγραφή δικών τους σχολίων
 
-## `frontend/admin/dashboard.html`
-- Staff-only panel διαχείρισης περιεχομένου
-- Επισκόπηση με latest posts και latest calendar events
-- Modal ροή για create/edit σε posts και events
-- Category chips και επιλογή κατηγοριών
-- Γρήγορα links για πλήρη διαχείριση (`posts.html`, `events.html`)
-
-## `frontend/admin/posts.html`
-- Πλήρης σελίδα διαχείρισης posts
-- Search, create, edit και delete posts
-- Editor.js modal flow για επεξεργασία
-
-## `frontend/admin/events.html`
-- Πλήρης σελίδα διαχείρισης calendar events
-- Φίλτρα με search/date/month/year
-- Create, edit και delete calendar events
-
-## `frontend/no-access.html`
-- Access denied σελίδα για μη εξουσιοδοτημένο admin access
-
-## `frontend/tos.html` και `frontend/privacy.html`
-- Νομικές σελίδες συνδεδεμένες σε όλα τα footers
+### Staff/Admin χρήστες
+- Πρόσβαση στις admin σελίδες (`dashboard`, `posts`, `events`, `categories`, `staff`, `profile`)
+- Δημιουργία/επεξεργασία/διαγραφή άρθρων (ισχύουν ownership rules για staff σε edit/delete)
+- Upload εικόνων για περιεχόμενο
+- Διαχείριση release calendar events
+- Διαχείριση κατηγοριών:
+  - δημιουργία: admin + staff
+  - διαγραφή: admin + staff
+  - επεξεργασία/μετονομασία: απενεργοποιημένη
+- Διαχείριση λίστας staff access (με τα τρέχοντα permissions επιτρέπεται σε admin και staff)
 
 ---
 
-## 8) Πώς διαχειρίζεται το ημερολόγιο
-
-Το ημερολόγιο βασίζεται σε δεδομένα post.
-
-Για να μπει post στο calendar:
-1. Άνοιγμα dashboard
-2. Στο “Calendar Events” επιλέγεις post
-3. Ορίζεις `Release Date`
-4. Πατάς publish event
-
-Αποθήκευση στο post:
-- `includeInCalendar: true`
-- `releaseDate`
-- `releaseType` (`Game`/`Tech` ή inferred)
-
-Το public endpoint `/api/releases`:
-- Παίρνει τα eligible posts
-- Κάνει normalize στις ημερομηνίες
-- Κάνει inference date όταν λείπει
-- Επιστρέφει events για το calendar UI
+## Τεχνολογίες
+- Frontend: static HTML/CSS/vanilla JS
+- Backend: Node.js + Express
+- Βάση: MongoDB (Mongoose)
+- Auth: JWT σε `httpOnly` cookie
+- Uploads: Multer + Cloudinary
+- AI σύνοψη: Groq free-tier ως προεπιλογή (προαιρετικά OpenAI fallback)
 
 ---
 
-## 9) Theme και UI state
-
-- Το mode (`light`/`dark`) αποθηκεύεται σε `localStorage`
-- Το `theme.js` ελέγχει header και mobile toggles
-- Τα auth links αλλάζουν δυναμικά (`Login` ↔ `Profile`, staff visibility)
-
----
-
-## 10) Security μηχανισμοί
-
-Υλοποιημένα:
-- Hashing κωδικών (`bcrypt`)
-- Signed JWT cookies (`httpOnly`, `sameSite: strict`)
-- Staff role checks σε middleware
-- Server-side guard για `/admin/*` (με εξαιρέσεις login/signup)
-- Upload endpoint μόνο για authenticated staff
-- Upload όριο 5MB
-
-Προτεινόμενα για πιο δυνατό hardening:
-- HTTPS παντού σε production
-- Ισχυρό `JWT_SECRET`
-- Προστασία Cloudinary credentials
-- Τακτικός έλεγχος `STAFF_EMAILS`
-- Προσθήκη rate limiting και CSRF protection
+## Σημαντικές συμπεριφορές
+- Οι κατηγορίες κανονικοποιούνται σε UPPERCASE.
+- Η διαγραφή κατηγορίας αφαιρεί την κατηγορία case-insensitively και από τα posts.
+- Το κουμπί σύνοψης στη σελίδα άρθρου είναι one-time ανά post ανά browser (`localStorage`).
+- Το endpoint σύνοψης έχει rate limit (`/api/posts/summarize`, 5 αιτήματα/ώρα ανά IP).
+- Οι AI περιλήψεις ζητούνται στα Ελληνικά.
 
 ---
 
-## 11) Environment variables
+## Απαραίτητα env variables
 
-Δημιούργησε `.env` στο root:
+Ελάχιστα:
+- `PORT`
+- `MONGO_URI`
+- `JWT_SECRET` (τουλάχιστον 32 χαρακτήρες)
+- `CLOUDINARY_CLOUD_NAME`
+- `CLOUDINARY_API_KEY`
+- `CLOUDINARY_API_SECRET`
+- `STAFF_EMAILS`
 
-```env
-PORT=3000
-MONGO_URI=mongodb+srv://.../blog
-JWT_SECRET=replace_with_long_random_secret
-NODE_ENV=development
-STAFF_EMAILS=staff1@example.com,staff2@example.com
+Προαιρετικά για AI:
+- `AI_PROVIDER=groq|openai|auto`
+- `GROQ_API_KEY`
+- `GROQ_MODEL` (default: `llama-3.1-8b-instant`)
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL` (default: `gpt-4o-mini`)
 
-CLOUDINARY_CLOUD_NAME=...
-CLOUDINARY_API_KEY=...
-CLOUDINARY_API_SECRET=...
-```
-
----
-
-## 12) Εγκατάσταση και εκτέλεση
-
-Requirements:
-- Node.js 18+
-- MongoDB
-- Cloudinary account για uploads
-
-Install dependencies:
-```bash
-npm install
-```
-
-Run server:
-```bash
-npm start
-```
-
-Άνοιγμα στον browser:
-- `http://localhost:3000/`
+Αν δεν υπάρχει AI key, γίνεται local fallback σύνοψη.
 
 ---
 
-## 13) Βασικά workflows διαχείρισης
+## Εκτέλεση τοπικά
+1. `npm install`
+2. Ρύθμιση `.env`
+3. `npm start`
+4. Άνοιγμα `http://localhost:3000`
 
-## Δημιουργία πρώτου staff account
-1. Όρισε `STAFF_EMAILS` στο `.env`
-2. Κάνε signup με email που υπάρχει στο `STAFF_EMAILS`
-3. Κάνε login
-4. Θα γίνει redirect στο dashboard
-
-## Δημοσίευση post
-1. Πήγαινε dashboard
-2. Συμπλήρωσε title/slug/categories/content
-3. Save post
-4. Το post εμφανίζεται στο home αν είναι `published: true`
-
-## Δημοσίευση calendar event
-1. Dashboard -> “Calendar Events”
-2. Επιλογή post
-3. Επιλογή ημερομηνίας
-4. Publish event
-5. Εμφανίζεται στο home calendar
+Αναμενόμενα logs:
+- `Server running on port ...`
+- `MongoDB connected`
 
 ---
 
-## 14) Σημειώσεις υλοποίησης
+## Σύνοψη routes
 
-- Το `frontend/js/api.js` αυτή τη στιγμή έχει μόνο `API_BASE` και δεν είναι το κεντρικό request layer.
-- Το `frontend/js/admin.js` φαίνεται legacy/minimal. Η ενεργή λογική dashboard είναι inline στο `admin/dashboard.html`.
-- Το `build` script στο `package.json` είναι `npm install` (όχι compile/bundle pipeline).
+### Public API
+- `GET /api/posts?list=1`
+- `GET /api/posts/by-id/:id`
+- `GET /api/posts/by-slug?slug=...`
+- `POST /api/posts/summarize` (rate-limited)
+- `GET /api/categories`
+- `GET /api/releases`
+- `GET /api/comments/:postId`
 
----
+### Auth/Profile API
+- `POST /api/auth/signup`
+- `POST /api/auth/login`
+- `POST /api/auth/logout`
+- `GET /api/auth/profile`
+- `PUT /api/auth/profile`
+- `PUT /api/auth/password`
 
-## 15) Troubleshooting
-
-## Κάνει login αλλά δεν μπαίνει dashboard
-- Έλεγξε ότι το email υπάρχει στο `STAFF_EMAILS`
-- Κάνε logout/login για να γίνει refresh ο ρόλος
-
-## Upload αποτυγχάνει
-- Έλεγξε Cloudinary env vars
-- Επιβεβαίωσε ότι η εικόνα είναι <= 5MB
-- Επιβεβαίωσε ότι ο λογαριασμός είναι staff
-
-## Δεν φαίνονται posts στο home
-- Βεβαιώσου ότι τα posts είναι `published: true`
-- Έλεγξε την απάντηση του `GET /api/posts`
-
-## Δεν δημοσιεύονται σχόλια
-- Βεβαιώσου ότι ο χρήστης είναι logged in
-- Έλεγξε ότι το `/api/auth/profile` επιστρέφει 200
+### Staff/Admin API
+- Posts: `POST/PUT/DELETE /api/posts/...`
+- Categories: `POST /api/categories`, `DELETE /api/categories/:name`, `PUT /api/categories/:name` επιστρέφει disabled (405)
+- Staff list: routes στο `/api/staff`
+- Upload: `POST /api/upload`
 
 ---
 
-## 16) License / ιδιοκτησία
-
-Δεν υπάρχει ξεχωριστό open-source license file στο repository. Αν θέλεις δημόσια διάθεση κώδικα, πρόσθεσε κατάλληλο license.
+## Security notes
+- Μην ανεβάζεις το `.env` σε git.
+- Κάνε άμεσα rotate τα secrets αν εκτεθούν (`JWT_SECRET`, DB credentials, Cloudinary secrets, AI API keys).
+- Αν βλέπεις παλιά συμπεριφορά, βεβαιώσου ότι τρέχει μόνο ένα Node process και κάνε hard refresh (`Ctrl+F5`).
