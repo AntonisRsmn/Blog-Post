@@ -1,0 +1,61 @@
+Google AdSense - Ready Guide (Enable later)
+
+Your website is now prepared with placeholder ad slots on all frontend pages.
+Ads will NOT run until you replace placeholder IDs in:
+- frontend/js/adsense.js
+
+--------------------------------------------------
+1) What to edit when you are ready
+--------------------------------------------------
+Open: frontend/js/adsense.js
+
+Replace these placeholders:
+- clientId: ca-pub-XXXXXXXXXXXXXXXX
+- homeSlot: 0000000000
+- postSlot: 0000000001
+- genericSlot: 0000000002
+
+With real values from your AdSense account:
+- Publisher ID (client): ca-pub-XXXXXXXXXXXXXXX
+- Ad slot IDs for each unit
+
+Tip:
+- Use one slot for home, one for post page, and one shared slot for all other pages.
+
+--------------------------------------------------
+2) Google account / AdSense setup
+--------------------------------------------------
+1. Go to https://www.google.com/adsense/start/
+2. Sign in with your Google account
+3. Add your website domain
+4. Complete identity and payment profile
+5. Complete site ownership verification if requested
+6. Wait for AdSense site approval
+
+--------------------------------------------------
+3) Create ad units in AdSense
+--------------------------------------------------
+After approval:
+1. AdSense -> Ads -> By ad unit
+2. Create Display ad units
+3. Copy each generated ad slot ID
+4. Paste those IDs into frontend/js/adsense.js
+
+--------------------------------------------------
+4) Deploy + verify
+--------------------------------------------------
+1. Deploy website to your real domain (not localhost)
+2. Open pages and check browser console for errors
+3. Check AdSense dashboard for site/ad-unit status
+
+Note:
+- Ad serving can take time after setup/approval.
+- If you target EEA/UK users, use a consent banner/CMP compatible with Google policies.
+
+--------------------------------------------------
+5) Current implementation summary
+--------------------------------------------------
+- Home page uses: homeSlot
+- Post page uses: postSlot
+- All other pages use: genericSlot
+- Shared script: frontend/js/adsense.js

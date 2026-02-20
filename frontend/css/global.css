@@ -532,6 +532,33 @@ main {
   flex: 1 0 auto;
 }
 
+.ad-block {
+  display: none;
+  margin: 0 0 22px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.ad-block.is-enabled {
+  display: block;
+}
+
+.ad-label {
+  margin: 0 0 8px;
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ad-slot {
+  width: 100%;
+  min-height: 90px;
+}
+
 /* Typography */
 h1, h2, h3, h4, h5, h6 {
   margin: 0;

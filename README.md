@@ -84,6 +84,54 @@ Expected startup logs:
 
 ---
 
+## Google AdSense setup (ads)
+
+This project now includes AdSense placeholders on:
+- `frontend/index.html` (home page ad)
+- `frontend/post.html` (single post ad)
+
+AdSense config is centralized in:
+- `frontend/js/adsense.js`
+
+### 1) Create and verify your AdSense account
+1. Sign in to AdSense with your Google account: `https://www.google.com/adsense/start/`
+2. Add your site domain (example: `rusman.gr`)
+3. Complete identity + payment profile details
+4. Verify ownership of your domain when requested (usually via DNS or AdSense snippet)
+5. Wait for site review/approval (can take from hours to several days)
+
+### 2) Create ad units in AdSense
+After approval:
+1. Go to **Ads → By ad unit**
+2. Create at least 2 display ad units (one for home, one for post page)
+3. Copy each generated **ad slot ID**
+
+### 3) Update this code with your real IDs
+Edit `frontend/js/adsense.js`:
+- Replace `clientId` with your real publisher ID (format: `ca-pub-...`)
+- Replace `homeSlot`, `postSlot`, and `genericSlot` with real slot IDs from AdSense
+
+Default placeholders are intentionally non-working:
+- `clientId: ca-pub-XXXXXXXXXXXXXXXX`
+- `homeSlot: 0000000000`
+- `postSlot: 0000000001`
+- `genericSlot: 0000000002`
+
+### 4) Go live requirements
+- Use a real domain in production (AdSense generally does not serve on localhost)
+- Ensure `privacy.html` discloses ads/cookies usage and links to your cookie policy/consent flow
+- If you target EEA/UK users, implement a CMP/cookie consent solution compatible with Google requirements
+
+### 5) Validate ads are loading
+1. Deploy your site
+2. Open the home and post pages
+3. Check browser console for AdSense errors
+4. In AdSense, monitor **Sites** and **Ads** status
+
+If no ads appear immediately, this is normal while account/site/ad-unit propagation completes.
+
+---
+
 ## Routes overview
 
 ### Public API
