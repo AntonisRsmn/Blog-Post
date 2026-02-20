@@ -207,7 +207,7 @@ let editingPostId = null;
 function showStatus(message, type) {
   if (!statusEl) return;
   statusEl.textContent = message;
-  statusEl.classList.remove("success", "error", "show");
+  statusEl.classList.remove("success", "error", "deleted", "show");
   if (type) statusEl.classList.add(type);
   statusEl.classList.add("show");
 }
@@ -316,12 +316,14 @@ function renderEventsList() {
     return;
   }
 
-  filtered.forEach(post => {
+    filtered.forEach(post => {
+      const safePostId = encodeURIComponent(post._id || "");
+      const safeSlug = encodeURIComponent(post.slug || "");
     const li = document.createElement("li");
     li.className = "post-item events-page-item";
     li.innerHTML = `
       <div class="release-event-main">
-        <a class="post-item-title" href="/post.html?slug=${post.slug}" target="_blank" rel="noopener">${post.title}</a>
+            <a class="post-item-title" href="/post.html?id=${safePostId}${safeSlug ? `&slug=${safeSlug}` : ""}" target="_blank" rel="noopener">${post.title}</a>
         <span class="release-event-date">${formatCalendarDate(post.releaseDate)} • /${post.slug}</span>
       </div>
       <div class="post-item-actions">
@@ -395,7 +397,7 @@ window.deleteEvent = async function deleteEvent(postId) {
     closeEditModal();
   }
 
-  showStatus("Event deleted.", "success");
+  showStatus("Event deleted", "deleted");
   await loadPosts();
 };
 
@@ -434,14 +436,14 @@ async function saveEvent() {
     return;
   }
 
-  showStatus(editingPostId ? "Event updated." : "Event created.", "success");
+  showStatus(editingPostId ? "Event Edited" : "Event Created", "success");
   resetEventEditor();
   closeEditModal();
   await loadPosts();
 }
 
 async function loadPosts() {
-  const response = await fetch("/api/posts/manage");
+  const response = await fetch("/api/posts/manage?list=1");
   const posts = await response.json();
 
   allPosts = Array.isArray(posts) ? posts : [];

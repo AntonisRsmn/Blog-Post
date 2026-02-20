@@ -86,6 +86,25 @@ main {
   color: #fecaca;
 }
 
+.admin-status.deleted {
+  background: #2a1114;
+  border: 1px solid #b91c1c;
+  color: #fecaca;
+}
+
+html[data-theme="light"] .admin-status.success {
+  background: #fff8e1;
+  border: 1px solid #facc15;
+  color: #7c5a00;
+}
+
+html[data-theme="light"] .admin-status.error,
+html[data-theme="light"] .admin-status.deleted {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  color: #991b1b;
+}
+
 /* Form spacing */
 .form-group {
   margin-bottom: 12px;
@@ -114,6 +133,17 @@ main {
   display: grid;
   grid-template-columns: 1fr;
   gap: 8px;
+}
+
+.category-manager-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.category-manager-row input {
+  width: 100%;
 }
 
 .selected-categories {

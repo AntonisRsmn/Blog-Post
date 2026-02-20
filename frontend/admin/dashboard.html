@@ -36,6 +36,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@editorjs/paragraph@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@editorjs/image@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@editorjs/embed@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@editorjs/quote@latest"></script>
 </head>
 <body>
 
@@ -107,6 +108,20 @@
           <ul id="release-events" class="posts-list"></ul>
           <div class="posts-list-actions posts-list-actions-left">
             <a href="/admin/events.html" class="admin-link-btn">See all events</a>
+          </div>
+        </div>
+
+        <div class="admin-section">
+          <div class="latest-posts-head">
+            <div class="latest-posts-head-copy">
+              <h2>Categories</h2>
+              <p class="release-manager-hint">Showing 10 categories used in posts and filters.</p>
+            </div>
+            <button type="button" id="dashboard-new-category-btn" class="admin-link-btn admin-link-btn-primary" onclick="openCreateCategoryModal()">New Category</button>
+          </div>
+          <ul id="dashboard-categories" class="posts-list"></ul>
+          <div class="posts-list-actions posts-list-actions-left">
+            <a href="/admin/categories.html" class="admin-link-btn">See all categories</a>
           </div>
         </div>
       </div>
@@ -184,6 +199,29 @@
         </form>
       </div>
     </div>
+
+    <div id="category-edit-overlay" class="post-edit-overlay" hidden>
+      <div class="post-edit-modal" role="dialog" aria-modal="true" aria-labelledby="category-edit-title">
+        <div class="post-edit-head">
+          <h2 id="category-edit-title">New Category</h2>
+          <button type="button" id="category-edit-close" class="secondary">Close</button>
+        </div>
+
+        <form id="categoryForm" class="post-edit-form">
+          <input type="hidden" id="category-old-name" />
+
+          <div class="form-group">
+            <label for="category-name-input">Category Name</label>
+            <input id="category-name-input" type="text" placeholder="NEW CATEGORY" maxlength="40" required />
+          </div>
+
+          <div class="post-edit-actions">
+            <button type="submit" id="save-category-btn">Add Category</button>
+            <button type="button" id="cancel-category-btn" class="secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </main>
 
@@ -252,14 +290,17 @@ async function ensureStaffAccess() {
   const res = await fetch("/api/auth/profile");
   if (!res.ok) {
     window.location.href = "/no-access.html";
-    return;
+    return false;
   }
 
   const profile = await res.json();
   if (profile.role !== "admin" && profile.role !== "staff") {
     window.location.href = "/no-access.html";
-    return;
+    return false;
   }
+
+  currentUserRole = String(profile.role || "").toLowerCase();
+  return true;
 }
 
 let isEditing = false;
@@ -267,8 +308,10 @@ let availableCategories = [];
 let selectedCategories = [];
 let allDashboardPosts = [];
 let releaseEditPostId = null;
+let currentUserRole = "";
 const DASHBOARD_POST_LIMIT = 7;
 const DASHBOARD_RELEASE_LIMIT = 8;
+const DASHBOARD_CATEGORY_LIMIT = 10;
 const statusEl = document.getElementById("status");
 const dashboardEditOverlay = document.getElementById("dashboard-edit-overlay");
 const dashboardEditClose = document.getElementById("dashboard-edit-close");
@@ -276,11 +319,18 @@ const dashboardPostEditTitle = document.getElementById("dashboard-post-edit-titl
 const releaseEditOverlay = document.getElementById("release-edit-overlay");
 const releaseEditClose = document.getElementById("release-edit-close");
 const releaseEditTitle = document.getElementById("release-edit-title");
+const categoryEditOverlay = document.getElementById("category-edit-overlay");
+const categoryEditClose = document.getElementById("category-edit-close");
+const categoryEditTitle = document.getElementById("category-edit-title");
+const categoryOldNameInput = document.getElementById("category-old-name");
+const categoryNameInput = document.getElementById("category-name-input");
+const saveCategoryButton = document.getElementById("save-category-btn");
+const dashboardNewCategoryButton = document.getElementById("dashboard-new-category-btn");
 
 function showStatus(message, type) {
   if (!statusEl) return;
   statusEl.textContent = message;
-  statusEl.classList.remove("success", "error", "show");
+  statusEl.classList.remove("success", "error", "deleted", "show");
   if (type) statusEl.classList.add(type);
   statusEl.classList.add("show");
 }
@@ -288,7 +338,7 @@ function showStatus(message, type) {
 function clearStatus() {
   if (!statusEl) return;
   statusEl.textContent = "";
-  statusEl.classList.remove("success", "error", "show");
+  statusEl.classList.remove("success", "error", "deleted", "show");
 }
 
 function toSlug(value) {
@@ -301,7 +351,7 @@ function toSlug(value) {
 }
 
 function normalizeCategory(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
+  return String(value || "").replace(/\s+/g, " ").trim().toUpperCase();
 }
 
 function sortCategories(values) {
@@ -388,6 +438,142 @@ async function loadCategories() {
   }
 
   renderCategoryOptions();
+  renderDashboardCategories();
+}
+
+function renderDashboardCategories() {
+  const list = document.getElementById("dashboard-categories");
+  if (!list) return;
+
+  list.innerHTML = "";
+
+  if (!availableCategories.length) {
+    const emptyItem = document.createElement("li");
+    emptyItem.className = "post-item";
+
+    const emptyText = document.createElement("span");
+    emptyText.className = "post-item-title";
+    emptyText.textContent = "No categories yet.";
+
+    emptyItem.appendChild(emptyText);
+    list.appendChild(emptyItem);
+    return;
+  }
+
+  availableCategories.slice(0, DASHBOARD_CATEGORY_LIMIT).forEach(name => {
+    const item = document.createElement("li");
+    item.className = "post-item";
+
+    const title = document.createElement("span");
+    title.className = "post-item-title";
+    title.textContent = name;
+    item.appendChild(title);
+
+    if (currentUserRole === "admin" || currentUserRole === "staff") {
+      const actions = document.createElement("div");
+      actions.className = "post-item-actions";
+
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "danger";
+      removeButton.textContent = "Delete";
+      removeButton.addEventListener("click", () => deleteCategory(name));
+
+      actions.appendChild(removeButton);
+      item.appendChild(actions);
+    }
+
+    list.appendChild(item);
+  });
+}
+
+async function createCategory(name) {
+  if (currentUserRole !== "admin" && currentUserRole !== "staff") {
+    showStatus("Staff access required.", "error");
+    return false;
+  }
+
+  const normalized = normalizeCategory(name);
+  if (!normalized) {
+    showStatus("Category name is required.", "error");
+    return false;
+  }
+
+  const response = await fetch("/api/categories", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: normalized })
+  });
+
+  if (!response.ok) {
+    const errorPayload = await response.json().catch(() => ({}));
+    showStatus(errorPayload.error || `Could not add category (HTTP ${response.status}).`, "error");
+    return false;
+  }
+
+  await loadCategories();
+  showStatus("Category added.", "success");
+  return true;
+}
+
+async function deleteCategory(name) {
+  if (currentUserRole !== "admin" && currentUserRole !== "staff") {
+    showStatus("Staff access required.", "error");
+    return;
+  }
+
+  const normalized = normalizeCategory(name);
+  if (!normalized) return;
+
+  try {
+    const response = await fetch("/api/categories/" + encodeURIComponent(normalized), {
+      method: "DELETE"
+    });
+
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => ({}));
+      showStatus(errorPayload.error || `Could not delete category (HTTP ${response.status}).`, "error");
+      return;
+    }
+
+    selectedCategories = selectedCategories.filter(category => category !== normalized);
+    renderSelectedCategories();
+    renderCategoryOptions();
+    await loadCategories();
+    showStatus("Category deleted.", "deleted");
+  } catch {
+    showStatus("Could not reach the server. Please try again.", "error");
+  }
+}
+
+function openCreateCategoryModal() {
+  if (currentUserRole !== "admin" && currentUserRole !== "staff") {
+    showStatus("Staff access required.", "error");
+    return;
+  }
+
+  if (categoryOldNameInput) categoryOldNameInput.value = "";
+  if (categoryNameInput) categoryNameInput.value = "";
+  if (categoryEditTitle) categoryEditTitle.textContent = "New Category";
+  if (saveCategoryButton) saveCategoryButton.textContent = "Add Category";
+  if (categoryEditOverlay) {
+    categoryEditOverlay.hidden = false;
+    document.body.style.overflow = "hidden";
+  }
+}
+
+function closeCategoryModal() {
+  if (categoryOldNameInput) categoryOldNameInput.value = "";
+  if (categoryNameInput) categoryNameInput.value = "";
+  if (categoryEditTitle) categoryEditTitle.textContent = "New Category";
+  if (saveCategoryButton) saveCategoryButton.textContent = "Add Category";
+  if (categoryEditOverlay) {
+    categoryEditOverlay.hidden = true;
+    if ((dashboardEditOverlay && !dashboardEditOverlay.hidden) || (releaseEditOverlay && !releaseEditOverlay.hidden)) {
+      return;
+    }
+    document.body.style.overflow = "";
+  }
 }
 
 function collectTextValues(value, result) {
@@ -494,15 +680,20 @@ const editor = new EditorJS({
       class: Embed,
       config: {
         services: {
-          youtube: true
+          youtube: true,
+          twitter: true
         }
       }
+    },
+    quote: {
+      class: Quote,
+      inlineToolbar: true
     }
   }
 });
 
 async function loadPosts() {
-  const res = await fetch("/api/posts/manage");
+  const res = await fetch("/api/posts/manage?list=1");
   const posts = await res.json();
 
   allDashboardPosts = Array.isArray(posts) ? posts : [];
@@ -516,6 +707,7 @@ function normalizePostsSearch(value) {
 }
 
 function getPostImageUrl(post) {
+  if (post?.thumbnailUrl) return post.thumbnailUrl;
   if (!Array.isArray(post?.content)) return "";
   const imageBlock = post.content.find(block => block?.type === "image");
   if (!imageBlock) return "";
@@ -551,19 +743,24 @@ function renderPostsList() {
   latestPosts.forEach(p => {
     const li = document.createElement("li");
     const imageUrl = getPostImageUrl(p);
+    const safePostId = encodeURIComponent(p._id || "");
+    const safeSlug = encodeURIComponent(p.slug || "");
+    const postUrl = `/post.html?id=${safePostId}${safeSlug ? `&slug=${safeSlug}` : ""}`;
     li.className = "post-item posts-page-item";
     li.innerHTML = `
       <div class="posts-page-main">
-        ${imageUrl
-          ? `<img src="${imageUrl}" alt="${p.title}" class="posts-page-thumb" />`
-          : '<div class="posts-page-thumb posts-page-thumb-placeholder" aria-hidden="true"></div>'}
+        <a href="${postUrl}" aria-label="Open ${p.title}">
+          ${imageUrl
+            ? `<img src="${imageUrl}" alt="${p.title}" class="posts-page-thumb" />`
+            : '<div class="posts-page-thumb posts-page-thumb-placeholder" aria-hidden="true"></div>'}
+        </a>
         <div class="posts-page-text">
           <span class="post-item-title">${p.title}</span>
           <span class="release-event-date">/${p.slug}</span>
         </div>
       </div>
       <div class="post-item-actions">
-        <button class="secondary" onclick="editPost('${p.slug}')">Edit</button>
+        <button class="secondary" onclick="editPostById(decodeURIComponent('${safePostId}'))">Edit</button>
         <button class="danger" onclick="deletePost('${p._id}')">Delete</button>
       </div>
     `;
@@ -696,9 +893,11 @@ function renderReleaseEventsList() {
   events.forEach(post => {
     const li = document.createElement("li");
     li.className = "post-item events-page-item";
+    const safePostId = encodeURIComponent(post._id || "");
+    const safeSlug = encodeURIComponent(post.slug || "");
     li.innerHTML = `
       <div class="release-event-main">
-        <a class="post-item-title" href="/post.html?slug=${post.slug}" target="_blank" rel="noopener">${post.title}</a>
+        <a class="post-item-title" href="/post.html?id=${safePostId}${safeSlug ? `&slug=${safeSlug}` : ""}">${post.title}</a>
         <span class="release-event-date">${formatCalendarDate(post.releaseDate)}</span>
       </div>
       <div class="post-item-actions">
@@ -760,6 +959,8 @@ window.editReleaseEvent = function editReleaseEvent(postId) {
 };
 
 window.deleteReleaseEvent = async function deleteReleaseEvent(postId) {
+  clearStatus();
+
   const res = await fetch("/api/posts/" + postId, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -779,11 +980,13 @@ window.deleteReleaseEvent = async function deleteReleaseEvent(postId) {
     resetReleaseForm();
   }
 
-  showStatus("Calendar event deleted.", "success");
+  showStatus("Event deleted", "deleted");
   await loadPosts();
 };
 
 async function saveReleaseEvent() {
+  clearStatus();
+
   const postSelect = document.getElementById("release-post-select");
   const dateInput = document.getElementById("release-date");
   const selectedPostId = postSelect?.value;
@@ -821,15 +1024,32 @@ async function saveReleaseEvent() {
     return;
   }
 
-  showStatus(releaseEditPostId ? "Calendar event updated." : "Calendar event created.", "success");
+  showStatus(releaseEditPostId ? "Event Edited" : "Event Created", "success");
   resetReleaseForm();
   closeReleaseModal();
   await loadPosts();
 }
 
-async function editPost(slugValue) {
-  const res = await fetch("/api/posts/" + slugValue);
-  const post = await res.json();
+async function editPostById(postId) {
+  let post = null;
+
+  const res = await fetch("/api/posts/manage/" + encodeURIComponent(postId));
+  if (res.ok) {
+    post = await res.json();
+  } else {
+    const listRes = await fetch("/api/posts/manage");
+    if (listRes.ok) {
+      const list = await listRes.json();
+      if (Array.isArray(list)) {
+        post = list.find(item => String(item?._id || "") === String(postId)) || null;
+      }
+    }
+  }
+
+  if (!post) {
+    showStatus("Could not load post for editing.", "error");
+    return;
+  }
 
   isEditing = true;
 
@@ -869,7 +1089,7 @@ async function openCreatePostModal() {
   }
 }
 
-async function cancelPostEdit() {
+async function cancelPostEdit(preserveStatus = false) {
   document.getElementById("postForm").reset();
   document.getElementById("postId").value = "";
   setSelectedCategories([]);
@@ -888,7 +1108,9 @@ async function cancelPostEdit() {
     document.body.style.overflow = "";
   }
 
-  clearStatus();
+  if (!preserveStatus) {
+    clearStatus();
+  }
 }
 
 async function deletePost(id) {
@@ -897,18 +1119,18 @@ async function deletePost(id) {
     showStatus("Could not delete the post. Please try again.", "error");
     return;
   }
-  showStatus("Post deleted.", "error");
+  showStatus("Post deleted.", "deleted");
   loadPosts();
 }
 
 async function openPostFromQuery() {
   const params = new URLSearchParams(window.location.search);
-  const slugToEdit = params.get("edit");
-  if (!slugToEdit) return;
+  const postIdToEdit = params.get("editId");
+  if (!postIdToEdit) return;
 
-  await editPost(slugToEdit);
+  await editPostById(postIdToEdit);
 
-  params.delete("edit");
+  params.delete("editId");
   const nextQuery = params.toString();
   const nextUrl = nextQuery ? `${window.location.pathname}?${nextQuery}` : window.location.pathname;
   window.history.replaceState({}, "", nextUrl);
@@ -919,11 +1141,17 @@ document.getElementById("postForm").addEventListener("submit", async e => {
   clearStatus();
   const isUpdate = !!document.getElementById("postId").value;
 
-  const data = await editor.save();
+  let data;
+  try {
+    data = await editor.save();
+  } catch {
+    showStatus("Editor content is invalid. Please review the post content and try again.", "error");
+    return;
+  }
 
   const titleValue = document.getElementById("title").value;
   const slugInput = document.getElementById("slug");
-  const slugValue = slugInput.value || toSlug(titleValue);
+  const slugValue = toSlug(slugInput.value || titleValue);
   slugInput.value = slugValue;
 
   const post = {
@@ -949,10 +1177,11 @@ document.getElementById("postForm").addEventListener("submit", async e => {
   if (res.ok) {
     showStatus(isUpdate ? "Post updated successfully." : "Post created successfully.", "success");
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    await cancelPostEdit();
+    await cancelPostEdit(true);
     loadPosts();
   } else {
-    showStatus("Error saving post. Try again.", "error");
+    const errorPayload = await res.json().catch(() => ({}));
+    showStatus(errorPayload.error || "Error saving post. Try again.", "error");
   }
 });
 
@@ -976,10 +1205,17 @@ document.getElementById("releaseEventForm")?.addEventListener("submit", async ev
   event.preventDefault();
   await saveReleaseEvent();
 });
+document.getElementById("categoryForm")?.addEventListener("submit", async event => {
+  event.preventDefault();
+  const ok = await createCategory(categoryNameInput?.value || "");
+  if (ok) closeCategoryModal();
+});
 document.getElementById("cancel-release-edit-btn")?.addEventListener("click", () => {
   resetReleaseForm();
   closeReleaseModal();
 });
+document.getElementById("cancel-category-btn")?.addEventListener("click", closeCategoryModal);
+categoryEditClose?.addEventListener("click", closeCategoryModal);
 releaseEditClose?.addEventListener("click", () => {
   resetReleaseForm();
   closeReleaseModal();
@@ -1000,7 +1236,18 @@ releaseEditOverlay?.addEventListener("click", event => {
   }
 });
 
+categoryEditOverlay?.addEventListener("click", event => {
+  if (event.target === categoryEditOverlay) {
+    closeCategoryModal();
+  }
+});
+
 document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && categoryEditOverlay && !categoryEditOverlay.hidden) {
+    closeCategoryModal();
+    return;
+  }
+
   if (event.key === "Escape" && releaseEditOverlay && !releaseEditOverlay.hidden) {
     resetReleaseForm();
     closeReleaseModal();
@@ -1012,10 +1259,12 @@ document.addEventListener("keydown", event => {
   }
 });
 
-loadCategories();
-loadPosts();
-initializeReleasePostTypeahead();
-ensureStaffAccess();
+(async function initializeDashboardPage() {
+  await ensureStaffAccess();
+  await loadCategories();
+  await loadPosts();
+  initializeReleasePostTypeahead();
+})();
 </script>
 
 </body>

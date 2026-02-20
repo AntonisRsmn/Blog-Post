@@ -11,6 +11,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@editorjs/paragraph@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@editorjs/image@latest"></script>
   <script src="https://cdn.jsdelivr.net/npm/@editorjs/embed@latest"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@editorjs/quote@latest"></script>
 </head>
 <body>
 
@@ -187,7 +188,7 @@ const editIdInput = document.getElementById("post-edit-id");
 function showStatus(message, type) {
   if (!statusEl) return;
   statusEl.textContent = message;
-  statusEl.classList.remove("success", "error", "show");
+  statusEl.classList.remove("success", "error", "deleted", "show");
   if (type) statusEl.classList.add(type);
   statusEl.classList.add("show");
 }
@@ -206,10 +207,12 @@ function toSlug(value) {
 }
 
 function parseCategories(value) {
-  return String(value || "")
+  const normalized = String(value || "")
     .split(",")
-    .map(item => item.trim())
+    .map(item => item.replace(/\s+/g, " ").trim().toUpperCase())
     .filter(Boolean);
+
+  return [...new Set(normalized)];
 }
 
 async function ensurePostEditor() {
@@ -247,9 +250,14 @@ async function ensurePostEditor() {
         class: Embed,
         config: {
           services: {
-            youtube: true
+            youtube: true,
+            twitter: true
           }
         }
+      },
+      quote: {
+        class: Quote,
+        inlineToolbar: true
       }
     }
   });
@@ -316,6 +324,7 @@ function getFilteredPosts() {
 }
 
 function getPostImageUrl(post) {
+  if (post?.thumbnailUrl) return post.thumbnailUrl;
   if (!Array.isArray(post?.content)) return "";
   const imageBlock = post.content.find(block => block?.type === "image");
   if (!imageBlock) return "";
@@ -343,18 +352,23 @@ function renderPostsList() {
     const li = document.createElement("li");
     li.className = "post-item posts-page-item";
     const imageUrl = getPostImageUrl(post);
+    const safePostId = encodeURIComponent(post._id || "");
+    const safeSlug = encodeURIComponent(post.slug || "");
+    const postUrl = `/post.html?id=${safePostId}${safeSlug ? `&slug=${safeSlug}` : ""}`;
     li.innerHTML = `
       <div class="posts-page-main">
-        ${imageUrl
-          ? `<img src="${imageUrl}" alt="${post.title}" class="posts-page-thumb" />`
-          : '<div class="posts-page-thumb posts-page-thumb-placeholder" aria-hidden="true"></div>'}
+        <a href="${postUrl}" aria-label="Open ${post.title}">
+          ${imageUrl
+            ? `<img src="${imageUrl}" alt="${post.title}" class="posts-page-thumb" />`
+            : '<div class="posts-page-thumb posts-page-thumb-placeholder" aria-hidden="true"></div>'}
+        </a>
         <div class="posts-page-text">
           <span class="post-item-title">${post.title}</span>
           <span class="release-event-date">/${post.slug}</span>
         </div>
       </div>
       <div class="post-item-actions">
-        <button class="secondary" onclick="editPost('${post.slug}')">Edit</button>
+        <button class="secondary" onclick="editPostById(decodeURIComponent('${safePostId}'))">Edit</button>
         <button class="danger" onclick="deletePost('${post._id}')">Delete</button>
       </div>
     `;
@@ -363,7 +377,7 @@ function renderPostsList() {
 }
 
 async function loadPosts() {
-  const res = await fetch("/api/posts/manage");
+  const res = await fetch("/api/posts/manage?list=1");
   if (!res.ok) {
     showStatus("Could not load posts.", "error");
     return;
@@ -377,14 +391,27 @@ async function loadPosts() {
   renderPostsList();
 }
 
-async function editPost(slug) {
-  const res = await fetch("/api/posts/" + encodeURIComponent(slug));
-  if (!res.ok) {
+async function editPostById(postId) {
+  let post = null;
+
+  const res = await fetch("/api/posts/manage/" + encodeURIComponent(postId));
+  if (res.ok) {
+    post = await res.json();
+  } else {
+    const listRes = await fetch("/api/posts/manage");
+    if (listRes.ok) {
+      const list = await listRes.json();
+      if (Array.isArray(list)) {
+        post = list.find(item => String(item?._id || "") === String(postId)) || null;
+      }
+    }
+  }
+
+  if (!post) {
     showStatus("Could not load post for editing.", "error");
     return;
   }
 
-  const post = await res.json();
   await ensurePostEditor();
 
   editIdInput.value = post._id || "";
@@ -408,18 +435,18 @@ async function deletePost(id) {
     return;
   }
 
-  showStatus("Post deleted.", "success");
+  showStatus("Post deleted.", "deleted");
   loadPosts();
 }
 
 async function openPostFromQuery() {
   const params = new URLSearchParams(window.location.search);
-  const slugToEdit = params.get("edit");
-  if (!slugToEdit) return;
+  const postIdToEdit = params.get("editId");
+  if (!postIdToEdit) return;
 
-  await editPost(slugToEdit);
+  await editPostById(postIdToEdit);
 
-  params.delete("edit");
+  params.delete("editId");
   const nextQuery = params.toString();
   const nextUrl = nextQuery ? `${window.location.pathname}?${nextQuery}` : window.location.pathname;
   window.history.replaceState({}, "", nextUrl);
@@ -458,9 +485,16 @@ editForm?.addEventListener("submit", async event => {
   const postId = editIdInput.value;
   const isUpdate = !!postId;
 
-  const blocks = await postEditor.save();
+  let blocks;
+  try {
+    blocks = await postEditor.save();
+  } catch {
+    showStatus("Editor content is invalid. Please review the post content and try again.", "error");
+    return;
+  }
   const title = editTitleInput.value.trim();
-  const slug = editSlugInput.value.trim() || toSlug(title);
+  const slug = toSlug(editSlugInput.value.trim() || title);
+  editSlugInput.value = slug;
   const categories = parseCategories(editCategoriesInput.value);
 
   const payload = {
@@ -482,7 +516,9 @@ editForm?.addEventListener("submit", async event => {
   });
 
   if (!res.ok) {
-    showStatus(isUpdate ? "Could not save post changes." : "Could not create post.", "error");
+    const errorPayload = await res.json().catch(() => ({}));
+    const fallback = isUpdate ? "Could not save post changes." : "Could not create post.";
+    showStatus(errorPayload.error || fallback, "error");
     return;
   }
 

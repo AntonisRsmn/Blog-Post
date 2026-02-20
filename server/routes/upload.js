@@ -12,12 +12,23 @@ cloudinary.config({
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowed = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+    if (!allowed.has(file.mimetype)) {
+      return cb(new Error("Invalid image type"));
+    }
+    cb(null, true);
+  }
 });
 
 const router = express.Router();
 
 router.post("/", auth, requireUploaderOrStaff, upload.single("image"), (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: "Image file is required" });
+  }
+
   const stream = cloudinary.uploader.upload_stream(
     { folder: "blog" },
     (err, result) => {

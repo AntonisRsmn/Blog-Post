@@ -10,6 +10,10 @@ function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 function normalizeAccessRole(value) {
   if (value === "admin") return "admin";
   if (value === "staff") return "staff";
@@ -102,6 +106,10 @@ router.post("/", auth, requireStaff, async (req, res) => {
   const role = req.body?.role === "staff" ? "staff" : "admin";
   if (!email) {
     return res.status(400).json({ error: "Email is required." });
+  }
+
+  if (!isValidEmail(email)) {
+    return res.status(400).json({ error: "Invalid email format." });
   }
 
   await StaffAccess.findOneAndUpdate(

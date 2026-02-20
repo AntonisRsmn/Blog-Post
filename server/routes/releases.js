@@ -12,81 +12,10 @@ function toDateOnlyString(value) {
   return `${year}-${month}-${day}`;
 }
 
-function normalizeExtractedDate(date) {
-  const parsed = new Date(date);
+function normalizeDate(value) {
+  const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return null;
   return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
-}
-
-function collectTextFragments(value, fragments) {
-  if (typeof value === "string") {
-    fragments.push(value.replace(/<[^>]*>/g, " "));
-    return;
-  }
-
-  if (Array.isArray(value)) {
-    value.forEach(item => collectTextFragments(item, fragments));
-    return;
-  }
-
-  if (value && typeof value === "object") {
-    Object.values(value).forEach(item => collectTextFragments(item, fragments));
-  }
-}
-
-function extractDateFromText(text) {
-  if (!text) return null;
-
-  const monthNameDateMatches = text.match(/\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?(?:,)?\s+20\d{2}\b/gi);
-  if (monthNameDateMatches) {
-    for (const match of monthNameDateMatches) {
-      const cleaned = match.replace(/(st|nd|rd|th)/gi, "").replace(/\s+/g, " ").trim();
-      const parsed = normalizeExtractedDate(cleaned);
-      if (parsed) return parsed;
-    }
-  }
-
-  const dayMonthDateMatches = text.match(/\b\d{1,2}(?:st|nd|rd|th)?\s+(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+20\d{2}\b/gi);
-  if (dayMonthDateMatches) {
-    for (const match of dayMonthDateMatches) {
-      const cleaned = match.replace(/(st|nd|rd|th)/gi, "").replace(/\s+/g, " ").trim();
-      const parsed = normalizeExtractedDate(cleaned);
-      if (parsed) return parsed;
-    }
-  }
-
-  const isoMatches = text.match(/\b20\d{2}[-\/.](0?[1-9]|1[0-2])[-\/.](0?[1-9]|[12]\d|3[01])\b/g);
-  if (isoMatches) {
-    const parsed = normalizeExtractedDate(isoMatches[0].replace(/[/.]/g, "-"));
-    if (parsed) return parsed;
-  }
-
-  const dmyMatches = text.match(/\b(0?[1-9]|[12]\d|3[01])[\/.-](0?[1-9]|1[0-2])[\/.-](20\d{2})\b/g);
-  if (dmyMatches) {
-    const [day, month, year] = dmyMatches[0].split(/[\/.-]/);
-    const parsed = normalizeExtractedDate(`${year}-${month}-${day}`);
-    if (parsed) return parsed;
-  }
-
-  return null;
-}
-
-function inferReleaseDate(post) {
-  if (post.releaseDate) {
-    const explicitDate = normalizeExtractedDate(post.releaseDate);
-    if (explicitDate) return explicitDate;
-  }
-
-  const fragments = [];
-  collectTextFragments(post.title, fragments);
-  collectTextFragments(post.excerpt, fragments);
-  collectTextFragments(post.categories, fragments);
-  collectTextFragments(post.content, fragments);
-
-  const parsed = extractDateFromText(fragments.join(" "));
-  if (parsed) return parsed;
-
-  return normalizeExtractedDate(post.createdAt);
 }
 
 function detectReleaseType(post) {
@@ -103,9 +32,10 @@ function detectReleaseType(post) {
 
 router.get("/", async (req, res) => {
   const posts = await Post.find({ published: true, includeInCalendar: true })
-    .select("title excerpt content categories slug createdAt releaseDate releaseType includeInCalendar")
+    .select("title categories slug createdAt releaseDate releaseType")
     .sort({ createdAt: -1 })
-    .limit(500);
+    .limit(500)
+    .lean();
 
   const now = new Date();
   const oldestAllowed = new Date(now);
@@ -113,7 +43,7 @@ router.get("/", async (req, res) => {
 
   const releases = posts
     .map(post => {
-      const releaseDate = inferReleaseDate(post);
+      const releaseDate = normalizeDate(post.releaseDate || post.createdAt);
       return {
         id: String(post._id),
         title: post.title,

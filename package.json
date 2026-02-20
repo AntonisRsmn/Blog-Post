@@ -6,9 +6,13 @@
   "dependencies": {
     "bcrypt": "^6.0.0",
     "cloudinary": "^2.9.0",
+    "compression": "^1.8.0",
     "cookie-parser": "^1.4.7",
     "dotenv": "^17.2.3",
+    "express-mongo-sanitize": "^2.2.0",
+    "express-rate-limit": "^7.5.0",
     "express": "^5.2.1",
+    "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.1.6",
     "multer": "^2.0.2"

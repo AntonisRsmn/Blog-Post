@@ -1,15 +1,19 @@
 const express = require("express");
 const auth = require("../middleware/auth");
-const requireUploaderOrStaff = require("../middleware/requireUploaderOrStaff");
+const requireStaff = require("../middleware/requireStaff");
 const Category = require("../models/Category");
 const Post = require("../models/Post");
 
 const router = express.Router();
 
-const DEFAULT_CATEGORIES = ["Tech", "Gaming", "AI", "News", "Car"];
+const DEFAULT_CATEGORIES = ["TECH", "GAMING", "AI", "NEWS", "CAR"];
 
 function normalizeCategoryName(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
+  return String(value || "").replace(/\s+/g, " ").trim().toUpperCase();
+}
+
+function escapeRegex(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 async function ensureDefaultCategories() {
@@ -29,8 +33,8 @@ router.get("/", async (req, res) => {
   await ensureDefaultCategories();
 
   const [storedCategories, posts] = await Promise.all([
-    Category.find().select("name -_id"),
-    Post.find().select("categories -_id")
+    Category.find().select("name -_id").lean(),
+    Post.find().select("categories -_id").lean()
   ]);
 
   const names = new Set();
@@ -52,33 +56,70 @@ router.get("/", async (req, res) => {
   res.json(categories);
 });
 
-router.post("/", auth, requireUploaderOrStaff, async (req, res) => {
-  const name = normalizeCategoryName(req.body?.name);
-  if (!name) {
-    return res.status(400).json({ error: "Category name is required." });
+router.post("/", auth, requireStaff, async (req, res) => {
+  try {
+    const name = normalizeCategoryName(req.body?.name);
+    if (!name) {
+      return res.status(400).json({ error: "Category name is required." });
+    }
+
+    await Category.findOneAndUpdate(
+      { name },
+      { name },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    res.json({ name });
+  } catch {
+    res.status(500).json({ error: "Could not create category." });
   }
-
-  await Category.findOneAndUpdate(
-    { name },
-    { name },
-    { upsert: true, new: true, setDefaultsOnInsert: true }
-  );
-
-  res.json({ name });
 });
 
-router.delete("/:name", auth, requireUploaderOrStaff, async (req, res) => {
-  const name = normalizeCategoryName(decodeURIComponent(req.params.name));
-  if (!name) {
-    return res.status(400).json({ error: "Category name is required." });
+router.put("/:name", auth, requireStaff, async (req, res) => {
+  return res.status(405).json({ error: "Editing categories is disabled." });
+});
+
+router.delete("/:name", auth, requireStaff, async (req, res) => {
+  try {
+    const name = normalizeCategoryName(decodeURIComponent(req.params.name));
+    if (!name) {
+      return res.status(400).json({ error: "Category name is required." });
+    }
+
+    const nameRegex = new RegExp(`^${escapeRegex(name)}$`, "i");
+
+    await Category.deleteMany({ name: nameRegex });
+
+    const posts = await Post.find({ categories: { $exists: true, $ne: [] } })
+      .select("_id categories")
+      .lean();
+
+    const updates = posts
+      .map(post => {
+        const categories = Array.isArray(post.categories) ? post.categories : [];
+        const filtered = categories.filter(category => normalizeCategoryName(category) !== name);
+
+        if (filtered.length === categories.length) {
+          return null;
+        }
+
+        return {
+          updateOne: {
+            filter: { _id: post._id },
+            update: { $set: { categories: filtered } }
+          }
+        };
+      })
+      .filter(Boolean);
+
+    if (updates.length) {
+      await Post.bulkWrite(updates, { ordered: false });
+    }
+
+    res.json({ name });
+  } catch {
+    res.status(500).json({ error: "Could not delete category." });
   }
-
-  await Promise.all([
-    Category.deleteOne({ name }),
-    Post.updateMany({}, { $pull: { categories: name } })
-  ]);
-
-  res.json({ name });
 });
 
 module.exports = router;

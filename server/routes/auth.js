@@ -6,6 +6,7 @@ const StaffAccess = require("../models/StaffAccess");
 const auth = require("../middleware/auth");
 
 const router = express.Router();
+const TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
 
 function getStaffEmails() {
   const raw = process.env.STAFF_EMAILS || "";
@@ -17,6 +18,36 @@ function getStaffEmails() {
 
 function normalizeEmail(email) {
   return String(email || "").trim().toLowerCase();
+}
+
+function sanitizePlainText(value, maxLength = 120) {
+  return String(value || "")
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .trim()
+    .slice(0, maxLength);
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function isStrongPassword(password) {
+  const value = String(password || "");
+  const hasLetter = /[a-zA-Z]/.test(value);
+  const hasNumber = /[0-9]/.test(value);
+  const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(value);
+  const isLongEnough = value.length >= 8;
+  return hasLetter && hasNumber && hasSymbol && isLongEnough;
+}
+
+function getCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: TOKEN_TTL_MS,
+    path: "/"
+  };
 }
 
 async function resolveRole(email) {
@@ -42,26 +73,24 @@ router.post("/signup", async (req, res) => {
     return res.status(400).json({ error: "First name, last name, email, and password are required" });
   }
 
-  const normalizedFirstName = String(firstName || "").trim();
-  const normalizedLastName = String(lastName || "").trim();
+  const normalizedFirstName = sanitizePlainText(firstName, 60);
+  const normalizedLastName = sanitizePlainText(lastName, 60);
+  const normalizedEmail = normalizeEmail(email);
+
+  if (!isValidEmail(normalizedEmail)) {
+    return res.status(400).json({ error: "Invalid email format" });
+  }
 
   if (!normalizedFirstName || !normalizedLastName) {
     return res.status(400).json({ error: "First name and last name are required" });
   }
 
-  // Validate password strength
-  const hasLetter = /[a-zA-Z]/.test(password);
-  const hasNumber = /[0-9]/.test(password);
-  const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
-  const isLongEnough = password.length >= 8;
-
-  if (!hasLetter || !hasNumber || !hasSymbol || !isLongEnough) {
+  if (!isStrongPassword(password)) {
     return res.status(400).json({ 
       error: "Password must be at least 8 characters and include letters, numbers, and symbols" 
     });
   }
 
-  const normalizedEmail = normalizeEmail(email);
   const existing = await User.findOne({ email: normalizedEmail });
   if (existing) {
     return res.status(409).json({ error: "This email is already registered. Please log in instead." });
@@ -81,11 +110,7 @@ router.post("/signup", async (req, res) => {
     expiresIn: "2h"
   });
 
-  res.cookie("token", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict"
-  });
+  res.cookie("token", token, getCookieOptions());
 
   res.json({ success: true });
 });
@@ -98,6 +123,10 @@ router.post("/login", async (req, res) => {
   }
 
   const normalizedEmail = normalizeEmail(email);
+  if (!isValidEmail(normalizedEmail)) {
+    return res.status(400).json({ error: "Invalid email format" });
+  }
+
   const user = await User.findOne({ email: normalizedEmail });
   if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
@@ -114,11 +143,7 @@ router.post("/login", async (req, res) => {
     expiresIn: "2h"
   });
 
-  res.cookie("token", token, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict"
-  });
+  res.cookie("token", token, getCookieOptions());
 
   res.json({ success: true });
 });
@@ -142,19 +167,31 @@ router.put("/profile", auth, async (req, res) => {
   const updates = {};
 
   if (typeof firstName === "string") {
-    updates.firstName = firstName.trim();
+    updates.firstName = sanitizePlainText(firstName, 60);
   }
 
   if (typeof lastName === "string") {
-    updates.lastName = lastName.trim();
+    updates.lastName = sanitizePlainText(lastName, 60);
   }
 
   if (typeof username === "string") {
-    updates.username = username.trim();
+    updates.username = sanitizePlainText(username, 40);
   }
 
   if (typeof avatarUrl === "string") {
-    updates.avatarUrl = avatarUrl.trim();
+    const normalizedAvatar = String(avatarUrl || "").trim();
+    if (!normalizedAvatar) {
+      updates.avatarUrl = "";
+    } else {
+      try {
+        const parsed = new URL(normalizedAvatar);
+        const isHttp = parsed.protocol === "https:" || parsed.protocol === "http:";
+        if (!isHttp) return res.status(400).json({ error: "Invalid avatar URL" });
+        updates.avatarUrl = normalizedAvatar;
+      } catch {
+        return res.status(400).json({ error: "Invalid avatar URL" });
+      }
+    }
   }
 
   const user = await User.findByIdAndUpdate(req.user.userId, updates, {
@@ -185,6 +222,10 @@ router.put("/password", auth, async (req, res) => {
   const match = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!match) return res.status(401).json({ error: "Current password is incorrect" });
 
+  if (!isStrongPassword(newPassword)) {
+    return res.status(400).json({ error: "Password must be at least 8 characters and include letters, numbers, and symbols" });
+  }
+
   user.passwordHash = await bcrypt.hash(newPassword, 12);
   await user.save();
 
@@ -193,9 +234,9 @@ router.put("/password", auth, async (req, res) => {
 
 router.post("/logout", (req, res) => {
   res.clearCookie("token", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict"
+    ...getCookieOptions(),
+    maxAge: undefined,
+    expires: new Date(0)
   });
   res.json({ success: true });
 });

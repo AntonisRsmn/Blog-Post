@@ -13,6 +13,7 @@ const PostSchema = new mongoose.Schema(
       default: ""
     },
     includeInCalendar: { type: Boolean, default: false },
+    thumbnailUrl: { type: String, default: "" },
     slug: { type: String, required: true, unique: true },
     excerpt: String,
     content: { type: Array, required: true },
@@ -20,5 +21,9 @@ const PostSchema = new mongoose.Schema(
   },
   { timestamps: true }
 );
+
+PostSchema.index({ published: 1, createdAt: -1 });
+PostSchema.index({ authorId: 1, createdAt: -1 });
+PostSchema.index({ includeInCalendar: 1, releaseDate: -1 });
 
 module.exports = mongoose.model("Post", PostSchema);

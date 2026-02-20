@@ -2,10 +2,22 @@ const express = require("express");
 const Comment = require("../models/Comment");
 const User = require("../models/User");
 const auth = require("../middleware/auth");
+const mongoose = require("mongoose");
 
 const router = express.Router();
 
+function sanitizeCommentText(value) {
+  return String(value || "")
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    .trim()
+    .slice(0, 2000);
+}
+
 router.get("/:postId", async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.postId)) {
+    return res.status(400).json({ error: "Invalid post id" });
+  }
+
   const comments = await Comment.find({ postId: req.params.postId })
     .sort({ createdAt: -1 })
     .select("authorName authorAvatar text createdAt userId");
@@ -21,7 +33,11 @@ router.get("/:postId", async (req, res) => {
 });
 
 router.post("/:postId", auth, async (req, res) => {
-  const text = (req.body.text || "").trim();
+  if (!mongoose.Types.ObjectId.isValid(req.params.postId)) {
+    return res.status(400).json({ error: "Invalid post id" });
+  }
+
+  const text = sanitizeCommentText(req.body.text);
   if (!text) return res.status(400).json({ error: "Comment text is required" });
 
   const user = await User.findById(req.user.userId).select("email username avatarUrl");
@@ -47,6 +63,10 @@ router.post("/:postId", auth, async (req, res) => {
 });
 
 router.delete("/:commentId", auth, async (req, res) => {
+  if (!mongoose.Types.ObjectId.isValid(req.params.commentId)) {
+    return res.status(400).json({ error: "Invalid comment id" });
+  }
+
   const comment = await Comment.findById(req.params.commentId);
   if (!comment) return res.status(404).json({ error: "Not found" });
 

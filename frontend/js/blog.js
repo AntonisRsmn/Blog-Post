@@ -7,12 +7,179 @@ const POSTS_PAGE_SIZE = 7;
 let latestVisibleCount = POSTS_PAGE_SIZE;
 let searchVisibleCount = POSTS_PAGE_SIZE;
 const categoryVisibleCounts = new Map();
+let homeRenderVersion = 0;
+
+function normalizeCategoryLabel(value) {
+  return String(value || "").replace(/\s+/g, " ").trim().toUpperCase();
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function toSafeHttpUrl(value) {
+  try {
+    const parsed = new URL(String(value || ""), window.location.origin);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+    return parsed.href;
+  } catch {
+    return "";
+  }
+}
+
+function isTwitterStatusUrl(value) {
+  try {
+    const parsed = new URL(String(value || ""));
+    const host = parsed.hostname.toLowerCase();
+    const isTwitterHost = host === "twitter.com" || host === "www.twitter.com" || host === "x.com" || host === "www.x.com";
+    if (!isTwitterHost) return false;
+    return /^\/[A-Za-z0-9_]{1,15}\/status\/\d+/.test(parsed.pathname);
+  } catch {
+    return false;
+  }
+}
+
+function extractTwitterStatusUrl(text) {
+  const raw = String(text || "");
+  const matches = raw.match(/https?:\/\/(?:www\.)?(?:twitter\.com|x\.com)\/[A-Za-z0-9_]{1,15}\/status\/\d+[^\s<]*/gi) || [];
+
+  for (const candidate of matches) {
+    const safe = toSafeHttpUrl(candidate);
+    if (safe && isTwitterStatusUrl(safe)) {
+      return safe;
+    }
+  }
+
+  return "";
+}
+
+function renderLinkedText(text) {
+  const raw = String(text || "");
+
+  function linkifyPlainText(value) {
+    const input = String(value || "");
+    const urlRegex = /https?:\/\/[^\s<]+/gi;
+    let output = "";
+    let cursor = 0;
+
+    for (const match of input.matchAll(urlRegex)) {
+      const foundUrl = String(match[0] || "");
+      const start = Number(match.index || 0);
+
+      output += escapeHtml(input.slice(cursor, start));
+
+      const safeUrl = toSafeHttpUrl(foundUrl);
+      if (!safeUrl) {
+        output += escapeHtml(foundUrl);
+      } else {
+        output += `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(foundUrl)}</a>`;
+      }
+
+      cursor = start + foundUrl.length;
+    }
+
+    output += escapeHtml(input.slice(cursor));
+    return output;
+  }
+
+  function stripTags(value) {
+    return String(value || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  const anchorRegex = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let html = "";
+  let lastIndex = 0;
+
+  for (const match of raw.matchAll(anchorRegex)) {
+    const start = Number(match.index || 0);
+    const fullMatch = String(match[0] || "");
+    const href = String(match[1] || "");
+    const label = stripTags(match[2] || "");
+
+    html += linkifyPlainText(raw.slice(lastIndex, start));
+
+    const safeUrl = toSafeHttpUrl(href);
+    if (!safeUrl) {
+      html += escapeHtml(stripTags(fullMatch) || fullMatch);
+    } else {
+      const linkLabel = label || safeUrl;
+      html += `<a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(linkLabel)}</a>`;
+    }
+
+    lastIndex = start + fullMatch.length;
+  }
+
+  html += linkifyPlainText(raw.slice(lastIndex));
+  return html;
+}
+
+function renderParagraphBlock(text) {
+  const raw = String(text || "").replace(/<br\b[^>]*>/gi, "\n");
+  const trimmed = raw.trim();
+  const twitterUrl = extractTwitterStatusUrl(trimmed);
+  const looksLikeTwitterSnippet = /twitter-tweet|platform\.twitter\.com\/widgets\.js/i.test(trimmed);
+
+  if (twitterUrl && (trimmed === twitterUrl || looksLikeTwitterSnippet)) {
+    const safeUrl = escapeHtml(twitterUrl);
+    return `
+      <div class="article-embed article-embed-tweet">
+        <blockquote class="twitter-tweet">
+          <a href="${safeUrl}">${safeUrl}</a>
+        </blockquote>
+      </div>
+    `;
+  }
+
+  const parts = raw
+    .split(/\n\s*\n+/)
+    .map(part => part.replace(/\n+/g, " ").replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+
+  if (!parts.length) return "";
+  return parts.map(part => `<p>${renderLinkedText(part)}</p>`).join("");
+}
+
+function loadTwitterWidgets(target) {
+  const root = target || document;
+  if (!root.querySelector(".twitter-tweet")) return;
+
+  if (window.twttr && window.twttr.widgets && typeof window.twttr.widgets.load === "function") {
+    window.twttr.widgets.load(root);
+    return;
+  }
+
+  let script = document.getElementById("twitter-wjs");
+  if (script) return;
+
+  script = document.createElement("script");
+  script.id = "twitter-wjs";
+  script.async = true;
+  script.src = "https://platform.twitter.com/widgets.js";
+  script.onload = () => {
+    if (window.twttr && window.twttr.widgets && typeof window.twttr.widgets.load === "function") {
+      window.twttr.widgets.load(root);
+    }
+  };
+  document.body.appendChild(script);
+}
+
+function extractYouTubeVideoId(source) {
+  const raw = String(source || "");
+  const fromQuery = raw.includes("v=") ? raw.split("v=")[1] : "";
+  const candidate = (fromQuery || raw).split("&")[0].trim();
+  return /^[a-zA-Z0-9_-]{11}$/.test(candidate) ? candidate : "";
+}
 
 async function loadPosts() {
   const container = document.getElementById("home");
   if (!container) return;
 
-  const res = await fetch("/api/posts");
+  const res = await fetch("/api/posts?list=1");
   const posts = await res.json();
 
   allPosts = posts;
@@ -31,6 +198,7 @@ function getSortedPosts(posts) {
 }
 
 function getPostImageUrl(post) {
+  if (post?.thumbnailUrl) return post.thumbnailUrl;
   const imageBlock = post.content?.find(block => block.type === "image");
   if (!imageBlock) return null;
   return imageBlock.data?.file?.url || imageBlock.data?.url || imageBlock.data?.file || null;
@@ -38,26 +206,33 @@ function getPostImageUrl(post) {
 
 function createPostCard(post) {
   const card = document.createElement("a");
-  card.href = `post.html?slug=${post.slug}`;
+  const encodedId = encodeURIComponent(String(post._id || ""));
+  const encodedSlug = encodeURIComponent(String(post.slug || ""));
+  card.href = encodedId
+    ? `post.html?id=${encodedId}${encodedSlug ? `&slug=${encodedSlug}` : ""}`
+    : `post.html?slug=${encodedSlug}`;
   card.className = "post-card";
 
-  const imageUrl = getPostImageUrl(post);
+  const imageUrl = toSafeHttpUrl(getPostImageUrl(post));
   const date = new Date(post.createdAt).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric"
   });
-  const authorText = post.author ? `By ${post.author} • ` : "";
+  const safeTitle = escapeHtml(post.title || "Untitled");
+  const safeExcerpt = escapeHtml(post.excerpt || "Read more...");
+  const safeAuthor = escapeHtml(post.author || "");
+  const authorText = safeAuthor ? `By ${safeAuthor} • ` : "";
   const categoryText = Array.isArray(post.categories) && post.categories.length
-    ? post.categories.join(" · ")
+    ? post.categories.map(category => escapeHtml(normalizeCategoryLabel(category))).join(" · ")
     : "";
 
   card.innerHTML = `
-    ${imageUrl ? `<img src="${imageUrl}" alt="${post.title}" class="post-card-image">` : '<div class="post-card-image" style="background: var(--bg-secondary);"></div>'}
+    ${imageUrl ? `<img src="${imageUrl}" alt="${safeTitle}" class="post-card-image" loading="lazy" decoding="async">` : '<div class="post-card-image" style="background: var(--bg-secondary);"></div>'}
     <div class="post-card-content">
-      <h3 class="post-card-title">${post.title}</h3>
+      <h3 class="post-card-title">${safeTitle}</h3>
       ${categoryText ? `<div class="post-card-categories">${categoryText}</div>` : ""}
-      <p class="post-card-excerpt">${post.excerpt || "Read more..."}</p>
+      <p class="post-card-excerpt">${safeExcerpt}</p>
       <span class="post-card-meta">${authorText}${date}</span>
     </div>
   `;
@@ -122,7 +297,7 @@ function getAllCategories(posts) {
   posts.forEach(post => {
     if (!Array.isArray(post.categories)) return;
     post.categories.forEach(category => {
-      const value = String(category || "").trim();
+      const value = normalizeCategoryLabel(category);
       if (value) unique.add(value);
     });
   });
@@ -132,7 +307,7 @@ function getAllCategories(posts) {
 function postMatchesSelectedCategories(post) {
   if (!selectedCategoryFilters.size) return true;
   const postCategories = Array.isArray(post.categories) ? post.categories : [];
-  return postCategories.some(category => selectedCategoryFilters.has(String(category || "").trim()));
+  return postCategories.some(category => selectedCategoryFilters.has(normalizeCategoryLabel(category)));
 }
 
 function getPostsWithActiveFilters(posts) {
@@ -206,6 +381,7 @@ function renderFilterSidebar(categories) {
 }
 
 function renderHomeSections() {
+  const renderVersion = ++homeRenderVersion;
   const container = document.getElementById("home");
   if (!container) return;
 
@@ -263,83 +439,127 @@ function renderHomeSections() {
     ? categories.filter(category => selectedCategoryFilters.has(category))
     : categories;
 
-  categoriesToRender.forEach(category => {
-    const postsInCategoryAll = getSortedPosts(
-      allPosts.filter(post => Array.isArray(post.categories) && post.categories.includes(category))
-    );
+  setTimeout(() => {
+    if (renderVersion !== homeRenderVersion) return;
 
-    const isSelectedCategory = selectedCategoryFilters.has(category);
-    const visibleCount = isSelectedCategory
-      ? postsInCategoryAll.length
-      : ensureCategoryVisibleCount(category);
-    const postsInCategory = postsInCategoryAll.slice(0, visibleCount);
+    categoriesToRender.forEach(category => {
+      const postsInCategoryAll = getSortedPosts(
+        allPosts.filter(post => Array.isArray(post.categories) && post.categories.includes(category))
+      );
 
-    if (!postsInCategory.length) return;
+      const isSelectedCategory = selectedCategoryFilters.has(category);
+      const visibleCount = isSelectedCategory
+        ? postsInCategoryAll.length
+        : ensureCategoryVisibleCount(category);
+      const postsInCategory = postsInCategoryAll.slice(0, visibleCount);
 
-    const section = document.createElement("section");
-    section.className = "home-section category-section";
+      if (!postsInCategory.length) return;
 
-    const head = document.createElement("div");
-    head.className = "home-section-head";
-    head.innerHTML = `<h2>${category}</h2><p>Latest 7 posts in ${category}</p>`;
+      const section = document.createElement("section");
+      section.className = "home-section category-section";
 
-    const grid = document.createElement("div");
-    grid.className = "home-grid";
-    postsInCategory.forEach(post => {
-      grid.appendChild(createPostCard(post));
+      const head = document.createElement("div");
+      head.className = "home-section-head";
+      head.innerHTML = `<h2>${category}</h2><p>Latest 7 posts in ${category}</p>`;
+
+      const grid = document.createElement("div");
+      grid.className = "home-grid";
+      postsInCategory.forEach(post => {
+        grid.appendChild(createPostCard(post));
+      });
+
+      section.appendChild(head);
+      section.appendChild(grid);
+
+      if (!isSelectedCategory && visibleCount < postsInCategoryAll.length) {
+        section.appendChild(createShowMoreButton(() => {
+          categoryVisibleCounts.set(category, visibleCount + POSTS_PAGE_SIZE);
+          renderHomeSections();
+        }));
+      }
+
+      container.appendChild(section);
     });
-
-    section.appendChild(head);
-    section.appendChild(grid);
-
-    if (!isSelectedCategory && visibleCount < postsInCategoryAll.length) {
-      section.appendChild(createShowMoreButton(() => {
-        categoryVisibleCounts.set(category, visibleCount + POSTS_PAGE_SIZE);
-        renderHomeSections();
-      }));
-    }
-
-    container.appendChild(section);
-  });
+  }, 0);
 }
 
 async function loadPost() {
   const container = document.getElementById("post");
   if (!container) return;
 
-  const slug = new URLSearchParams(window.location.search).get("slug");
-  if (!slug) return;
+  const params = new URLSearchParams(window.location.search);
+  const postId = params.get("id");
+  const slug = params.get("slug");
 
-  const res = await fetch("/api/posts/" + slug);
-  if (!res.ok) {
+  let post = null;
+
+  const loadFromPublishedList = async () => {
+    const listRes = await fetch("/api/posts");
+    if (!listRes.ok) return null;
+    const posts = await listRes.json();
+    if (!Array.isArray(posts)) return null;
+
+    if (postId) {
+      const byId = posts.find(item => String(item?._id || "") === String(postId));
+      if (byId) return byId;
+    }
+
+    if (slug) {
+      const bySlug = posts.find(item => String(item?.slug || "") === String(slug));
+      if (bySlug) return bySlug;
+
+      const bySlugInsensitive = posts.find(item => String(item?.slug || "").toLowerCase() === String(slug || "").toLowerCase());
+      if (bySlugInsensitive) return bySlugInsensitive;
+    }
+
+    return null;
+  };
+
+  let res = null;
+  if (postId) {
+    res = await fetch("/api/posts/by-id/" + encodeURIComponent(postId));
+    if (res.ok) {
+      post = await res.json();
+    }
+  }
+
+  if (!post && slug) {
+    res = await fetch("/api/posts/by-slug?slug=" + encodeURIComponent(slug));
+    if (res.ok) {
+      post = await res.json();
+    }
+  }
+
+  if (!post) {
+    post = await loadFromPublishedList();
+  }
+
+  if (!post) {
     container.innerHTML = '<p style="color: var(--text-muted);">Post not found.</p>';
     return;
   }
 
-  const post = await res.json();
-  console.log("Full post:", post);
-
   currentPostId = post._id;
   const heroImage = post.content?.find(b => b.type === "image");
-  console.log("Hero image block:", heroImage);
 
   const bodyHtml = post.content?.map(block => {
     if (block === heroImage) return "";
 
     if (block.type === "paragraph") {
-      return `<p>${block.data.text}</p>`;
+      return renderParagraphBlock(block.data?.text || "");
     }
 
     if (block.type === "image") {
-      const imgUrl = block.data?.file?.url || 
+      const imgUrl = toSafeHttpUrl(block.data?.file?.url || 
                      block.data?.url || 
-                     block.data?.file;
-      console.log("Image URL in body:", imgUrl);
+                     block.data?.file);
+      if (!imgUrl) return "";
       return `<img src="${imgUrl}" alt="Article image" class="article-image">`;
     }
 
     if (block.type === "embed" && block.data.service === "youtube") {
-      const videoId = block.data.source.split("v=")[1];
+      const videoId = extractYouTubeVideoId(block.data?.source);
+      if (!videoId) return "";
       return `
         <div class="article-embed">
           <iframe
@@ -347,6 +567,51 @@ async function loadPost() {
             allowfullscreen>
           </iframe>
         </div>
+      `;
+    }
+
+    if (block.type === "embed" && block.data?.service === "twitter") {
+      const twitterUrl = extractTwitterStatusUrl(block.data?.source || block.data?.embed || "");
+      if (!twitterUrl) return "";
+      const safeUrl = escapeHtml(twitterUrl);
+      return `
+        <div class="article-embed article-embed-tweet">
+          <blockquote class="twitter-tweet">
+            <a href="${safeUrl}">${safeUrl}</a>
+          </blockquote>
+        </div>
+      `;
+    }
+
+    if (block.type === "quote") {
+      const rawQuoteText = String(block.data?.text || "");
+      const quoteCaption = escapeHtml(block.data?.caption || "");
+      const normalizedQuoteText = rawQuoteText
+        .replace(/\r\n/g, "\n")
+        .replace(/<br\b[^>]*>/gi, "\n")
+        .trim();
+
+      if (!normalizedQuoteText) return "";
+
+      const hasParagraphBreaks = /\n\s*\n+/.test(normalizedQuoteText);
+      let quoteTextHtml = "";
+
+      if (hasParagraphBreaks) {
+        quoteTextHtml = normalizedQuoteText
+          .split(/\n\s*\n+/)
+          .map(part => part.replace(/\n+/g, " ").replace(/\s+/g, " ").trim())
+          .filter(Boolean)
+          .map(part => `<p>${renderLinkedText(part)}</p>`)
+          .join("");
+      } else {
+        quoteTextHtml = `<p>${renderLinkedText(normalizedQuoteText).replace(/\n/g, "<br>")}</p>`;
+      }
+
+      return `
+        <blockquote class="article-quote">
+          ${quoteTextHtml}
+          ${quoteCaption ? `<cite>${quoteCaption}</cite>` : ""}
+        </blockquote>
       `;
     }
 
@@ -359,27 +624,39 @@ async function loadPost() {
     day: 'numeric'
   });
 
-  const authorLine = post.author ? `<span>By ${post.author}</span>` : "";
-  const categoryLine = Array.isArray(post.categories) && post.categories.length
-    ? `<span>${post.categories.join(" · ")}</span>`
-    : "";
+  const safePostTitle = escapeHtml(post.title || "Untitled");
+  const metaParts = [];
 
-  const heroUrl = heroImage?.data?.file?.url || 
+  if (post.author) {
+    metaParts.push(`By ${escapeHtml(post.author)}`);
+  }
+
+  if (Array.isArray(post.categories) && post.categories.length) {
+    metaParts.push(post.categories.map(category => escapeHtml(category)).join(" · "));
+  }
+
+  metaParts.push(date);
+
+  const metaHtml = metaParts
+    .map(part => `<span>${part}</span>`)
+    .join('<span aria-hidden="true">|</span>');
+
+  const heroUrl = toSafeHttpUrl(heroImage?.data?.file?.url || 
                   heroImage?.data?.url || 
-                  heroImage?.data?.file;
+                  heroImage?.data?.file);
 
   container.innerHTML = `
-    <h1>${post.title}</h1>
-    ${heroUrl ? `<img src="${heroUrl}" alt="${post.title}" class="article-image">` : ""}
+    <h1>${safePostTitle}</h1>
+    ${heroUrl ? `<img src="${heroUrl}" alt="${safePostTitle}" class="article-image">` : ""}
     <div class="article-meta">
-      ${authorLine}
-      ${categoryLine}
-      <span>${date}</span>
+      ${metaHtml}
     </div>
     <div class="article-content">
       ${bodyHtml}
     </div>
   `;
+
+  loadTwitterWidgets(container);
 
   await loadViewer();
   loadComments(post._id);
@@ -422,21 +699,39 @@ async function loadComments(postId) {
     });
 
     const canDelete = currentUser && ((currentUser.role === "admin" || currentUser.role === "staff") || currentUser._id === comment.userId);
-    const deleteButton = canDelete
-      ? `<button class="comment-delete" onclick="deleteComment('${comment._id}')">Delete</button>`
-      : "";
 
-    item.innerHTML = `
-      <div class="comment-author">
-        ${comment.authorAvatar ? `<img src="${comment.authorAvatar}" alt="${comment.authorName}">` : ""}
-        <div>
-          <strong>${comment.authorName}</strong>
-          <span>${date}</span>
-        </div>
-        ${deleteButton}
-      </div>
-      <p>${comment.text}</p>
-    `;
+    const authorWrap = document.createElement("div");
+    authorWrap.className = "comment-author";
+
+    if (comment.authorAvatar) {
+      const avatar = document.createElement("img");
+      avatar.src = comment.authorAvatar;
+      avatar.alt = comment.authorName || "User avatar";
+      authorWrap.appendChild(avatar);
+    }
+
+    const identity = document.createElement("div");
+    const authorName = document.createElement("strong");
+    authorName.textContent = comment.authorName || "User";
+    const createdAt = document.createElement("span");
+    createdAt.textContent = date;
+    identity.appendChild(authorName);
+    identity.appendChild(createdAt);
+    authorWrap.appendChild(identity);
+
+    if (canDelete) {
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "comment-delete";
+      deleteBtn.textContent = "Delete";
+      deleteBtn.addEventListener("click", () => deleteComment(comment._id));
+      authorWrap.appendChild(deleteBtn);
+    }
+
+    const text = document.createElement("p");
+    text.textContent = comment.text || "";
+
+    item.appendChild(authorWrap);
+    item.appendChild(text);
     list.appendChild(item);
   });
 }
@@ -674,22 +969,34 @@ function renderReleaseCalendar() {
   monthEvents.forEach(event => {
     const item = document.createElement("div");
     item.className = "release-item";
-    item.innerHTML = `
-      <div class="release-item-name">${event.title}</div>
-      <div class="release-item-meta">${event.type} • ${formatReleaseDate(event.date)}</div>
-    `;
+    const name = document.createElement("div");
+    name.className = "release-item-name";
+    name.textContent = String(event.title || "Untitled");
+    const meta = document.createElement("div");
+    meta.className = "release-item-meta";
+    meta.textContent = `${String(event.type || "")}${event.type ? " • " : ""}${formatReleaseDate(event.date)}`;
+    item.appendChild(name);
+    item.appendChild(meta);
 
     if (event.slug) {
       item.style.cursor = "pointer";
       item.setAttribute("role", "link");
       item.tabIndex = 0;
       item.addEventListener("click", () => {
-        window.location.href = `post.html?slug=${encodeURIComponent(event.slug)}`;
+        const encodedEventId = encodeURIComponent(String(event.id || ""));
+        const encodedEventSlug = encodeURIComponent(String(event.slug || ""));
+        window.location.href = encodedEventId
+          ? `post.html?id=${encodedEventId}${encodedEventSlug ? `&slug=${encodedEventSlug}` : ""}`
+          : `post.html?slug=${encodedEventSlug}`;
       });
       item.addEventListener("keydown", e => {
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
-          window.location.href = `post.html?slug=${encodeURIComponent(event.slug)}`;
+          const encodedEventId = encodeURIComponent(String(event.id || ""));
+          const encodedEventSlug = encodeURIComponent(String(event.slug || ""));
+          window.location.href = encodedEventId
+            ? `post.html?id=${encodedEventId}${encodedEventSlug ? `&slug=${encodedEventSlug}` : ""}`
+            : `post.html?slug=${encodedEventSlug}`;
         }
       });
     }
@@ -771,7 +1078,7 @@ function filterPosts(query) {
     const authorMatch = normalizeSearchText(post.author).includes(normalizedQuery);
     const slugMatch = normalizeSearchText(post.slug).includes(normalizedQuery);
     const categoryMatch = post.categories?.some(cat => 
-      normalizeSearchText(cat).includes(normalizedQuery)
+      normalizeSearchText(normalizeCategoryLabel(cat)).includes(normalizedQuery)
     );
     
     return titleMatch || excerptMatch || authorMatch || categoryMatch || slugMatch;
@@ -834,16 +1141,32 @@ function displayPosts(posts) {
 // Load posts on page load
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
+    const hasHome = !!document.getElementById("home");
+    const hasPost = !!document.getElementById("post");
+
+    if (hasHome) {
+      loadPosts();
+      initializeSearch();
+      initializeReleaseCalendar();
+      initializeMobilePanelToggles();
+    }
+
+    if (hasPost) {
+      loadPost();
+    }
+  });
+} else {
+  const hasHome = !!document.getElementById("home");
+  const hasPost = !!document.getElementById("post");
+
+  if (hasHome) {
     loadPosts();
-    loadPost();
     initializeSearch();
     initializeReleaseCalendar();
     initializeMobilePanelToggles();
-  });
-} else {
-  loadPosts();
-  loadPost();
-  initializeSearch();
-  initializeReleaseCalendar();
-  initializeMobilePanelToggles();
+  }
+
+  if (hasPost) {
+    loadPost();
+  }
 }
