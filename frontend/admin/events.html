@@ -203,13 +203,24 @@ const eventDateInput = document.getElementById("event-date-input");
 
 let allPosts = [];
 let editingPostId = null;
+let statusHideTimer = null;
 
 function showStatus(message, type) {
   if (!statusEl) return;
+  if (statusHideTimer) {
+    clearTimeout(statusHideTimer);
+    statusHideTimer = null;
+  }
   statusEl.textContent = message;
   statusEl.classList.remove("success", "error", "deleted", "show");
   if (type) statusEl.classList.add(type);
   statusEl.classList.add("show");
+
+  statusHideTimer = setTimeout(() => {
+    statusEl.textContent = "";
+    statusEl.classList.remove("success", "error", "deleted", "show");
+    statusHideTimer = null;
+  }, 5000);
 }
 
 function normalizeSearch(value) {
@@ -377,6 +388,9 @@ window.editEvent = function editEvent(postId) {
 };
 
 window.deleteEvent = async function deleteEvent(postId) {
+  const confirmed = await window.showDeleteConfirm?.("Are you sure you want to delete this event?");
+  if (!confirmed) return;
+
   const response = await fetch("/api/posts/" + postId, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },

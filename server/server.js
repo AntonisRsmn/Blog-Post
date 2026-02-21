@@ -162,6 +162,14 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(frontendPath, "index.html"));
 });
 
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/")) {
+    return res.status(404).json({ error: "Not found" });
+  }
+
+  return res.status(404).sendFile(path.join(frontendPath, "404.html"));
+});
+
 app.use((err, req, res, next) => {
   if (err?.name === "MulterError") {
     return res.status(400).json({ error: "Invalid upload payload" });

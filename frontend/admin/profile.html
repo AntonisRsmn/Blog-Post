@@ -169,17 +169,32 @@ function updateThemeLabel() {
 window.addEventListener('DOMContentLoaded', updateThemeLabel);
 
 const statusEl = document.getElementById("status");
+let statusHideTimer = null;
 
 function showStatus(message, type) {
   if (!statusEl) return;
+  if (statusHideTimer) {
+    clearTimeout(statusHideTimer);
+    statusHideTimer = null;
+  }
   statusEl.textContent = message;
   statusEl.classList.remove("success", "error", "show");
   if (type) statusEl.classList.add(type);
   statusEl.classList.add("show");
+
+  statusHideTimer = setTimeout(() => {
+    statusEl.textContent = "";
+    statusEl.classList.remove("success", "error", "show");
+    statusHideTimer = null;
+  }, 5000);
 }
 
 function clearStatus() {
   if (!statusEl) return;
+  if (statusHideTimer) {
+    clearTimeout(statusHideTimer);
+    statusHideTimer = null;
+  }
   statusEl.textContent = "";
   statusEl.classList.remove("success", "error", "show");
 }

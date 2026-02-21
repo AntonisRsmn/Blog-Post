@@ -124,6 +124,18 @@
             <a href="/admin/categories.html" class="admin-link-btn">See all categories</a>
           </div>
         </div>
+
+        <div class="admin-section" id="dashboard-featured-section">
+          <div class="latest-posts-head">
+            <div class="latest-posts-head-copy">
+              <h2>Featured Posts</h2>
+              <p class="release-manager-hint">Manual picks (max 6). Adding a 7th removes the oldest featured one.</p>
+            </div>
+            <button type="button" id="dashboard-new-featured-btn" class="admin-link-btn admin-link-btn-primary" onclick="openCreateFeaturedModal()">New Feature</button>
+          </div>
+
+          <ul id="featured-posts" class="posts-list"></ul>
+        </div>
       </div>
     </div>
 
@@ -226,6 +238,29 @@
         </form>
       </div>
     </div>
+
+    <div id="featured-edit-overlay" class="post-edit-overlay" hidden>
+      <div class="post-edit-modal" role="dialog" aria-modal="true" aria-labelledby="featured-edit-title">
+        <div class="post-edit-head">
+          <h2 id="featured-edit-title">New Feature</h2>
+          <button type="button" id="featured-edit-close" class="secondary">Close</button>
+        </div>
+
+        <form id="featuredForm" class="post-edit-form">
+          <div class="form-group">
+            <label for="featured-post-select-modal">Post</label>
+            <select id="featured-post-select-modal" required>
+              <option value="">Select post</option>
+            </select>
+          </div>
+
+          <div class="post-edit-actions">
+            <button type="submit" id="save-featured-btn">Add Feature</button>
+            <button type="button" id="cancel-featured-btn" class="secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
   </div>
 </main>
 
@@ -316,13 +351,18 @@ let currentUserRole = "";
 const DASHBOARD_POST_LIMIT = 7;
 const DASHBOARD_RELEASE_LIMIT = 8;
 const DASHBOARD_CATEGORY_LIMIT = 10;
+const DASHBOARD_FEATURED_LIMIT = 6;
 const statusEl = document.getElementById("status");
+const featuredSection = document.getElementById("dashboard-featured-section");
 const dashboardEditOverlay = document.getElementById("dashboard-edit-overlay");
 const dashboardEditClose = document.getElementById("dashboard-edit-close");
 const dashboardPostEditTitle = document.getElementById("dashboard-post-edit-title");
 const releaseEditOverlay = document.getElementById("release-edit-overlay");
 const releaseEditClose = document.getElementById("release-edit-close");
 const releaseEditTitle = document.getElementById("release-edit-title");
+const featuredEditOverlay = document.getElementById("featured-edit-overlay");
+const featuredEditClose = document.getElementById("featured-edit-close");
+const featuredEditTitle = document.getElementById("featured-edit-title");
 const categoryEditOverlay = document.getElementById("category-edit-overlay");
 const categoryEditClose = document.getElementById("category-edit-close");
 const categoryEditTitle = document.getElementById("category-edit-title");
@@ -331,17 +371,33 @@ const categoryNameInput = document.getElementById("category-name-input");
 const saveCategoryButton = document.getElementById("save-category-btn");
 const dashboardNewCategoryButton = document.getElementById("dashboard-new-category-btn");
 const postSummaryInput = document.getElementById("post-summary");
+let featuredDashboardPosts = [];
+let statusHideTimer = null;
 
 function showStatus(message, type) {
   if (!statusEl) return;
+  if (statusHideTimer) {
+    clearTimeout(statusHideTimer);
+    statusHideTimer = null;
+  }
   statusEl.textContent = message;
   statusEl.classList.remove("success", "error", "deleted", "show");
   if (type) statusEl.classList.add(type);
   statusEl.classList.add("show");
+
+  statusHideTimer = setTimeout(() => {
+    statusEl.textContent = "";
+    statusEl.classList.remove("success", "error", "deleted", "show");
+    statusHideTimer = null;
+  }, 5000);
 }
 
 function clearStatus() {
   if (!statusEl) return;
+  if (statusHideTimer) {
+    clearTimeout(statusHideTimer);
+    statusHideTimer = null;
+  }
   statusEl.textContent = "";
   statusEl.classList.remove("success", "error", "deleted", "show");
 }
@@ -526,6 +582,9 @@ async function deleteCategory(name) {
     showStatus("Staff access required.", "error");
     return;
   }
+
+  const confirmed = await window.showDeleteConfirm?.("Are you sure you want to delete this category?");
+  if (!confirmed) return;
 
   const normalized = normalizeCategory(name);
   if (!normalized) return;
@@ -716,9 +775,168 @@ async function loadPosts() {
 
   allDashboardPosts = Array.isArray(posts) ? posts : [];
   renderPostsList();
+  renderFeaturedPostOptions();
   renderReleasePostOptions();
   renderReleaseEventsList();
+  await loadFeaturedPosts();
 }
+
+async function loadFeaturedPosts() {
+  if (!featuredSection) return;
+
+  const response = await fetch("/api/posts/manage/featured");
+  if (response.status === 403) {
+    featuredSection.style.display = "none";
+    return;
+  }
+
+  if (!response.ok) {
+    featuredDashboardPosts = [];
+    renderFeaturedPostsList();
+    return;
+  }
+
+  featuredSection.style.display = "";
+  const payload = await response.json();
+  featuredDashboardPosts = Array.isArray(payload) ? payload : [];
+  renderFeaturedPostOptions();
+  renderFeaturedPostsList();
+}
+
+function renderFeaturedPostOptions() {
+  const select = document.getElementById("featured-post-select-modal");
+  if (!select) return;
+
+  const previousValue = select.value;
+  const featuredIds = new Set(featuredDashboardPosts.map(post => String(post._id)));
+
+  select.innerHTML = '<option value="">Select post</option>';
+
+  const choices = [...allDashboardPosts]
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  choices.forEach(post => {
+    if (featuredIds.has(String(post._id))) return;
+    const option = document.createElement("option");
+    option.value = String(post._id);
+    option.textContent = `${post.title} (${post.slug})`;
+    select.appendChild(option);
+  });
+
+  if (previousValue && Array.from(select.options).some(option => option.value === previousValue)) {
+    select.value = previousValue;
+  }
+}
+
+function resetFeaturedForm() {
+  const select = document.getElementById("featured-post-select-modal");
+  const saveButton = document.getElementById("save-featured-btn");
+  const cancelButton = document.getElementById("cancel-featured-btn");
+
+  if (select) select.value = "";
+  if (saveButton) saveButton.textContent = "Add Feature";
+  if (cancelButton) cancelButton.textContent = "Cancel";
+  if (featuredEditTitle) featuredEditTitle.textContent = "New Feature";
+}
+
+function openFeaturedModal() {
+  if (!featuredEditOverlay) return;
+  featuredEditOverlay.hidden = false;
+  document.body.style.overflow = "hidden";
+}
+
+function closeFeaturedModal() {
+  if (!featuredEditOverlay) return;
+  featuredEditOverlay.hidden = true;
+  document.body.style.overflow = "";
+}
+
+window.openCreateFeaturedModal = function openCreateFeaturedModal() {
+  resetFeaturedForm();
+  renderFeaturedPostOptions();
+  openFeaturedModal();
+};
+
+function renderFeaturedPostsList() {
+  const list = document.getElementById("featured-posts");
+  if (!list) return;
+  list.innerHTML = "";
+
+  const featured = [...featuredDashboardPosts]
+    .sort((a, b) => new Date(b.featuredAddedAt || 0) - new Date(a.featuredAddedAt || 0))
+    .slice(0, DASHBOARD_FEATURED_LIMIT);
+
+  if (!featured.length) {
+    list.innerHTML = '<li style="padding: 16px; text-align: center; color: var(--text-muted);">No manual featured posts yet</li>';
+    return;
+  }
+
+  featured.forEach(post => {
+    const li = document.createElement("li");
+    const safePostId = encodeURIComponent(post._id || "");
+    const safeSlug = encodeURIComponent(post.slug || "");
+    li.className = "post-item events-page-item";
+    li.innerHTML = `
+      <div class="release-event-main">
+        <a class="post-item-title" href="/post.html?id=${safePostId}${safeSlug ? `&slug=${safeSlug}` : ""}">${post.title}</a>
+        <span class="release-event-date">Added: ${formatCalendarDate(post.featuredAddedAt || post.createdAt)}</span>
+      </div>
+      <div class="post-item-actions">
+        <button class="danger" onclick="removeFeaturedPost('${post._id}')">Remove</button>
+      </div>
+    `;
+    list.appendChild(li);
+  });
+}
+
+async function addFeaturedPost() {
+  clearStatus();
+  const select = document.getElementById("featured-post-select-modal");
+  const postId = String(select?.value || "").trim();
+  if (!postId) {
+    showStatus("Select a post to feature.", "error");
+    return;
+  }
+
+  const response = await fetch("/api/posts/manage/featured", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ postId })
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    showStatus(payload.error || "Could not add featured post.", "error");
+    return;
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  const removedCount = Number(payload?.removedCount || 0);
+  if (select) select.value = "";
+  showStatus(removedCount > 0 ? "Featured post added. Oldest featured post was removed to keep max 6." : "Featured post added.", "success");
+  closeFeaturedModal();
+  await loadPosts();
+}
+
+window.removeFeaturedPost = async function removeFeaturedPost(postId) {
+  clearStatus();
+
+  const confirmed = await window.showDeleteConfirm?.("Are you sure you want to remove this featured post?");
+  if (!confirmed) return;
+
+  const response = await fetch("/api/posts/manage/featured/" + encodeURIComponent(postId), {
+    method: "DELETE"
+  });
+
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    showStatus(payload.error || "Could not remove featured post.", "error");
+    return;
+  }
+
+  showStatus("Featured post removed.", "deleted");
+  await loadPosts();
+};
 
 function normalizePostsSearch(value) {
   return String(value || "").toLowerCase().trim();
@@ -979,6 +1197,9 @@ window.editReleaseEvent = function editReleaseEvent(postId) {
 window.deleteReleaseEvent = async function deleteReleaseEvent(postId) {
   clearStatus();
 
+  const confirmed = await window.showDeleteConfirm?.("Are you sure you want to delete this event?");
+  if (!confirmed) return;
+
   const res = await fetch("/api/posts/" + postId, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -1051,7 +1272,7 @@ async function saveReleaseEvent() {
 async function editPostById(postId) {
   let post = null;
 
-  const res = await fetch("/api/posts/manage/" + encodeURIComponent(postId));
+  const res = await fetch("/api/posts/manage/by-id/" + encodeURIComponent(postId));
   if (res.ok) {
     post = await res.json();
   } else {
@@ -1135,6 +1356,9 @@ async function cancelPostEdit(preserveStatus = false) {
 }
 
 async function deletePost(id) {
+  const confirmed = await window.showDeleteConfirm?.("Are you sure you want to delete this post?");
+  if (!confirmed) return;
+
   const res = await fetch("/api/posts/" + id, { method: "DELETE" });
   if (!res.ok) {
     showStatus("Could not delete the post. Please try again.", "error");
@@ -1226,6 +1450,10 @@ document.getElementById("releaseEventForm")?.addEventListener("submit", async ev
   event.preventDefault();
   await saveReleaseEvent();
 });
+document.getElementById("featuredForm")?.addEventListener("submit", async event => {
+  event.preventDefault();
+  await addFeaturedPost();
+});
 document.getElementById("categoryForm")?.addEventListener("submit", async event => {
   event.preventDefault();
   const ok = await createCategory(categoryNameInput?.value || "");
@@ -1235,11 +1463,19 @@ document.getElementById("cancel-release-edit-btn")?.addEventListener("click", ()
   resetReleaseForm();
   closeReleaseModal();
 });
+document.getElementById("cancel-featured-btn")?.addEventListener("click", () => {
+  resetFeaturedForm();
+  closeFeaturedModal();
+});
 document.getElementById("cancel-category-btn")?.addEventListener("click", closeCategoryModal);
 categoryEditClose?.addEventListener("click", closeCategoryModal);
 releaseEditClose?.addEventListener("click", () => {
   resetReleaseForm();
   closeReleaseModal();
+});
+featuredEditClose?.addEventListener("click", () => {
+  resetFeaturedForm();
+  closeFeaturedModal();
 });
 document.getElementById("cancel-post-edit-btn")?.addEventListener("click", cancelPostEdit);
 dashboardEditClose?.addEventListener("click", cancelPostEdit);
@@ -1254,6 +1490,13 @@ releaseEditOverlay?.addEventListener("click", event => {
   if (event.target === releaseEditOverlay) {
     resetReleaseForm();
     closeReleaseModal();
+  }
+});
+
+featuredEditOverlay?.addEventListener("click", event => {
+  if (event.target === featuredEditOverlay) {
+    resetFeaturedForm();
+    closeFeaturedModal();
   }
 });
 
@@ -1272,6 +1515,12 @@ document.addEventListener("keydown", event => {
   if (event.key === "Escape" && releaseEditOverlay && !releaseEditOverlay.hidden) {
     resetReleaseForm();
     closeReleaseModal();
+    return;
+  }
+
+  if (event.key === "Escape" && featuredEditOverlay && !featuredEditOverlay.hidden) {
+    resetFeaturedForm();
+    closeFeaturedModal();
     return;
   }
 

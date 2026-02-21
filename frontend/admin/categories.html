@@ -163,6 +163,7 @@ const editSaveButton = document.getElementById("categories-save-btn");
 const newCategoryButton = document.getElementById("categories-new-btn");
 let allCategories = [];
 let currentUserRole = "";
+let statusHideTimer = null;
 
 function normalizeCategory(value) {
   return String(value || "").replace(/\s+/g, " ").trim().toUpperCase();
@@ -174,10 +175,20 @@ function normalizeSearch(value) {
 
 function showStatus(message, type) {
   if (!statusEl) return;
+  if (statusHideTimer) {
+    clearTimeout(statusHideTimer);
+    statusHideTimer = null;
+  }
   statusEl.textContent = message;
   statusEl.classList.remove("success", "error", "deleted", "show");
   if (type) statusEl.classList.add(type);
   statusEl.classList.add("show");
+
+  statusHideTimer = setTimeout(() => {
+    statusEl.textContent = "";
+    statusEl.classList.remove("success", "error", "deleted", "show");
+    statusHideTimer = null;
+  }, 5000);
 }
 
 function getFilteredCategories() {
@@ -296,6 +307,9 @@ async function deleteCategory(name) {
     showStatus("Staff access required.", "error");
     return;
   }
+
+  const confirmed = await window.showDeleteConfirm?.("Are you sure you want to delete this category?");
+  if (!confirmed) return;
 
   const normalized = normalizeCategory(name);
   if (!normalized) return;

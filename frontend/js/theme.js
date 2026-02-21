@@ -8,6 +8,88 @@ function logout() {
 }
 
 window.logout = logout;
+let todayEventsRotationTimer = null;
+const TODAY_EVENTS_ROTATION_MS = 5000;
+
+function ensureDeleteConfirmModal() {
+  let overlay = document.getElementById('app-delete-confirm-overlay');
+  if (overlay) return overlay;
+
+  overlay = document.createElement('div');
+  overlay.id = 'app-delete-confirm-overlay';
+  overlay.className = 'app-delete-confirm-overlay';
+  overlay.hidden = true;
+  overlay.innerHTML = `
+    <div class="app-delete-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="app-delete-confirm-title">
+      <h3 id="app-delete-confirm-title" class="app-delete-confirm-title">Confirm deletion</h3>
+      <p id="app-delete-confirm-message" class="app-delete-confirm-message">Are you sure you want to delete this?</p>
+      <div class="app-delete-confirm-actions">
+        <button type="button" id="app-delete-confirm-accept" class="danger">Delete</button>
+        <button type="button" id="app-delete-confirm-cancel" class="secondary">Cancel</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+window.showDeleteConfirm = function showDeleteConfirm(message = 'Are you sure you want to delete this?') {
+  const overlay = ensureDeleteConfirmModal();
+  const messageEl = overlay.querySelector('#app-delete-confirm-message');
+  const acceptButton = overlay.querySelector('#app-delete-confirm-accept');
+  const cancelButton = overlay.querySelector('#app-delete-confirm-cancel');
+
+  if (!messageEl || !acceptButton || !cancelButton) {
+    return Promise.resolve(window.confirm(message));
+  }
+
+  messageEl.textContent = message;
+
+  return new Promise(resolve => {
+    const previousOverflow = document.body.style.overflow;
+
+    const cleanup = (result) => {
+      overlay.hidden = true;
+      document.body.style.overflow = previousOverflow;
+      overlay.removeEventListener('click', handleOverlayClick);
+      document.removeEventListener('keydown', handleKeyDown);
+      acceptButton.removeEventListener('click', onAccept);
+      cancelButton.removeEventListener('click', onCancel);
+      resolve(result);
+    };
+
+    const onAccept = () => cleanup(true);
+    const onCancel = () => cleanup(false);
+
+    const handleOverlayClick = (event) => {
+      if (event.target === overlay) {
+        cleanup(false);
+      }
+    };
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        cleanup(false);
+      }
+    };
+
+    overlay.hidden = false;
+    document.body.style.overflow = 'hidden';
+    acceptButton.focus();
+
+    overlay.addEventListener('click', handleOverlayClick);
+    document.addEventListener('keydown', handleKeyDown);
+    acceptButton.addEventListener('click', onAccept);
+    cancelButton.addEventListener('click', onCancel);
+  });
+};
+
+function clearTodayEventsRotationTimer() {
+  if (!todayEventsRotationTimer) return;
+  clearInterval(todayEventsRotationTimer);
+  todayEventsRotationTimer = null;
+}
 
 function setTheme(mode) {
   if (mode === 'dark') {
@@ -163,7 +245,256 @@ function initializeMobileSidebar() {
   closeSidebar();
 }
 
+function toDateKey(dateValue) {
+  const year = dateValue.getFullYear();
+  const month = String(dateValue.getMonth() + 1).padStart(2, '0');
+  const day = String(dateValue.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function parseDateKey(dateKey) {
+  const text = String(dateKey || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(text)) return null;
+  const [yearRaw, monthRaw, dayRaw] = text.split('-');
+  const year = Number(yearRaw);
+  const monthIndex = Number(monthRaw) - 1;
+  const day = Number(dayRaw);
+  const parsed = new Date(year, monthIndex, day);
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (parsed.getFullYear() !== year || parsed.getMonth() !== monthIndex || parsed.getDate() !== day) return null;
+  return parsed;
+}
+
+function createTodayEventsBanner() {
+  const banner = document.createElement('section');
+  banner.id = 'today-events-banner';
+  banner.className = 'today-events-banner';
+  banner.setAttribute('aria-live', 'polite');
+  banner.hidden = true;
+  banner.innerHTML = `
+    <div class="today-events-banner-inner">
+      <span class="today-events-label">Today</span>
+      <div class="today-events-content" id="today-events-content"></div>
+    </div>
+  `;
+  return banner;
+}
+
+function createEventLink(eventItem) {
+  const slug = String(eventItem?.slug || '').trim();
+  if (!slug) return null;
+  const anchor = document.createElement('a');
+  anchor.className = 'today-events-item';
+  anchor.href = `/post.html?slug=${encodeURIComponent(slug)}`;
+  anchor.textContent = String(eventItem?.title || 'Untitled event');
+  return anchor;
+}
+
+function createEventChip(eventItem) {
+  const type = String(eventItem?.type || '').trim();
+  const chip = document.createElement('span');
+  chip.className = 'today-events-chip';
+  chip.textContent = type || 'Event';
+  return chip;
+}
+
+function formatEventDateText(dateKey) {
+  const parsed = parseDateKey(dateKey);
+  if (!parsed) return '';
+  return parsed.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+}
+
+function updateReleaseCalendarTopOffset() {
+  const calendar = document.getElementById('release-calendar');
+  if (!calendar) return;
+
+  const header = document.querySelector('body > header');
+  const banner = document.getElementById('today-events-banner');
+
+  let topOffset = 96;
+
+  if (header) {
+    const headerRect = header.getBoundingClientRect();
+    topOffset = Math.max(topOffset, Math.round(headerRect.bottom + 6));
+  }
+
+  if (banner && !banner.hidden) {
+    const bannerRect = banner.getBoundingClientRect();
+    if (bannerRect.bottom > 0) {
+      topOffset = Math.max(topOffset, Math.round(bannerRect.bottom + 6));
+    }
+  }
+
+  document.documentElement.style.setProperty('--release-calendar-top', `${topOffset}px`);
+}
+
+function renderTodayEventsBanner(events) {
+  const header = document.querySelector('body > header');
+  if (!header) return;
+
+  clearTodayEventsRotationTimer();
+
+  let banner = document.getElementById('today-events-banner');
+  if (!banner) {
+    banner = createTodayEventsBanner();
+    header.insertAdjacentElement('afterend', banner);
+  }
+
+  const content = banner.querySelector('#today-events-content');
+  const bannerLabel = banner.querySelector('.today-events-label');
+  if (!content) return;
+
+  const list = Array.isArray(events) ? events : [];
+  const now = new Date();
+  const todayKey = toDateKey(now);
+  const todayDate = parseDateKey(todayKey);
+
+  const normalized = list
+    .map(item => ({
+      title: String(item?.title || '').trim(),
+      slug: String(item?.slug || '').trim(),
+      type: String(item?.type || '').trim(),
+      date: String(item?.date || '').trim()
+    }))
+    .filter(item => item.title && item.date)
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+
+  const todaysEvents = normalized.filter(item => item.date === todayKey);
+  const nextEvent = normalized.find(item => {
+    const parsed = parseDateKey(item.date);
+    return parsed && todayDate && parsed > todayDate;
+  });
+
+  content.innerHTML = '';
+
+  if (todaysEvents.length) {
+    if (bannerLabel) bannerLabel.textContent = 'Today';
+    const intro = document.createElement('span');
+    intro.className = 'today-events-intro';
+    intro.textContent = `${todaysEvents.length} upcoming ${todaysEvents.length === 1 ? 'event' : 'events'}:`;
+    content.appendChild(intro);
+
+    const eventWrap = document.createElement('span');
+    eventWrap.className = 'today-events-entry';
+    content.appendChild(eventWrap);
+
+    const dateHint = document.createElement('span');
+    dateHint.className = 'today-events-date';
+    content.appendChild(dateHint);
+
+    const setActiveEvent = (eventItem) => {
+      eventWrap.innerHTML = '';
+      const eventLink = createEventLink(eventItem);
+
+      if (eventLink) {
+        eventWrap.appendChild(eventLink);
+      } else {
+        const label = document.createElement('span');
+        label.className = 'today-events-item';
+        label.textContent = eventItem.title;
+        eventWrap.appendChild(label);
+      }
+
+      eventWrap.appendChild(createEventChip(eventItem));
+
+      const formattedDate = formatEventDateText(eventItem.date);
+      dateHint.textContent = formattedDate;
+      dateHint.hidden = !formattedDate;
+    };
+
+    let activeEventIndex = 0;
+    setActiveEvent(todaysEvents[activeEventIndex]);
+
+    if (todaysEvents.length > 1) {
+      todayEventsRotationTimer = setInterval(() => {
+        const isConnected = document.body.contains(eventWrap);
+        if (!isConnected) {
+          clearTodayEventsRotationTimer();
+          return;
+        }
+
+        activeEventIndex = (activeEventIndex + 1) % todaysEvents.length;
+        setActiveEvent(todaysEvents[activeEventIndex]);
+      }, TODAY_EVENTS_ROTATION_MS);
+    }
+
+    banner.hidden = false;
+    updateReleaseCalendarTopOffset();
+    return;
+  }
+
+  if (nextEvent) {
+    if (bannerLabel) bannerLabel.textContent = 'Upcoming';
+    const intro = document.createElement('span');
+    intro.className = 'today-events-intro';
+    intro.textContent = 'Upcoming event:';
+    content.appendChild(intro);
+
+    const nextWrap = document.createElement('span');
+    nextWrap.className = 'today-events-entry';
+    const link = createEventLink(nextEvent);
+    if (link) {
+      nextWrap.appendChild(link);
+    } else {
+      const text = document.createElement('span');
+      text.className = 'today-events-item';
+      text.textContent = nextEvent.title;
+      nextWrap.appendChild(text);
+    }
+    nextWrap.appendChild(createEventChip(nextEvent));
+    content.appendChild(nextWrap);
+
+    const formattedNextDate = formatEventDateText(nextEvent.date);
+    if (formattedNextDate) {
+      const dateHint = document.createElement('span');
+      dateHint.className = 'today-events-date';
+      dateHint.textContent = formattedNextDate;
+      content.appendChild(dateHint);
+    }
+
+    banner.hidden = false;
+    updateReleaseCalendarTopOffset();
+    return;
+  }
+
+  if (bannerLabel) bannerLabel.textContent = 'Upcoming';
+  const intro = document.createElement('span');
+  intro.className = 'today-events-intro';
+  intro.textContent = 'No upcoming events right now.';
+  content.appendChild(intro);
+
+  banner.hidden = false;
+  updateReleaseCalendarTopOffset();
+}
+
+async function initializeTodayEventsBanner() {
+  const pathname = String(window.location.pathname || '/');
+  const isHomePage = pathname === '/' || pathname === '/index.html';
+  if (!isHomePage) return;
+
+  const header = document.querySelector('body > header');
+  if (!header) return;
+
+  try {
+    const response = await fetch('/api/releases');
+    if (!response.ok) return;
+    const payload = await response.json();
+    renderTodayEventsBanner(payload);
+  } catch {
+    updateReleaseCalendarTopOffset();
+  }
+
+  window.addEventListener('resize', updateReleaseCalendarTopOffset);
+  window.addEventListener('scroll', updateReleaseCalendarTopOffset, { passive: true });
+}
+
 updateAuthLinks();
 updateStaffLinks();
 updateGuestLinks();
 initializeMobileSidebar();
+initializeTodayEventsBanner();
+updateReleaseCalendarTopOffset();

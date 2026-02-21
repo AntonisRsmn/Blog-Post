@@ -143,15 +143,30 @@ const roleInput = document.getElementById("staffRole");
 const searchInput = document.getElementById("staffSearch");
 let refreshTimer;
 let allEntries = [];
+let statusHideTimer = null;
 
 function showStatus(message, type) {
+  if (statusHideTimer) {
+    clearTimeout(statusHideTimer);
+    statusHideTimer = null;
+  }
   statusEl.textContent = message;
   statusEl.classList.remove("success", "error", "show");
   if (type) statusEl.classList.add(type);
   statusEl.classList.add("show");
+
+  statusHideTimer = setTimeout(() => {
+    statusEl.textContent = "";
+    statusEl.classList.remove("success", "error", "show");
+    statusHideTimer = null;
+  }, 5000);
 }
 
 function clearStatus() {
+  if (statusHideTimer) {
+    clearTimeout(statusHideTimer);
+    statusHideTimer = null;
+  }
   statusEl.textContent = "";
   statusEl.classList.remove("success", "error", "show");
 }
@@ -208,6 +223,10 @@ function createRow(entry) {
 
   removeBtn.addEventListener("click", async () => {
     clearStatus();
+
+    const confirmed = await window.showDeleteConfirm?.("Are you sure you want to remove this staff email?");
+    if (!confirmed) return;
+
     const res = await fetch(`/api/staff/${encodeURIComponent(entry.email)}`, {
       method: "DELETE"
     });

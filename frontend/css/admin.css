@@ -345,6 +345,40 @@ html[data-theme="light"] .admin-status.deleted {
 
 .events-filters-grid .form-group {
   margin-bottom: 0;
+  min-width: 0;
+}
+
+#events-search {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  box-sizing: border-box;
+}
+
+#events-date-filter {
+  display: block;
+  width: 92%;
+  min-width: 0;
+  max-width: 92%;
+  inline-size: 92%;
+  max-inline-size: 92%;
+  box-sizing: border-box;
+  margin-right: auto;
+}
+
+#events-date-filter::-webkit-date-and-time-value {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#events-date-filter::-webkit-datetime-edit,
+#events-date-filter::-webkit-datetime-edit-fields-wrapper {
+  min-width: 0;
+  max-width: 100%;
+  overflow: visible;
 }
 
 .release-manager {
@@ -381,20 +415,28 @@ html[data-theme="light"] .admin-status.deleted {
   width: 100%;
 }
 
-#release-date {
+.admin-container input[type="date"] {
   width: 100%;
   min-width: 0;
+  min-inline-size: 0;
   max-width: 100%;
   font-size: 1rem;
   line-height: 1.2;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-#release-date::-webkit-date-and-time-value {
+.admin-container input[type="date"]::-webkit-date-and-time-value {
   text-align: left;
+  min-width: 0;
 }
 
-#release-date::-webkit-datetime-edit {
+.admin-container input[type="date"]::-webkit-datetime-edit {
   padding: 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .release-event-main {
@@ -519,6 +561,17 @@ html[data-theme="light"] .admin-status.deleted {
   margin: 0;
 }
 
+.featured-manager-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.featured-manager-row select {
+  width: 100%;
+}
+
 .admin-link-btn {
   display: inline-flex;
   align-items: center;
@@ -606,6 +659,8 @@ html[data-theme="light"] .admin-status.deleted {
   display: grid;
   place-items: center;
   padding: 16px;
+  box-sizing: border-box;
+  overflow-x: hidden;
 }
 
 .post-edit-overlay[hidden] {
@@ -613,14 +668,17 @@ html[data-theme="light"] .admin-status.deleted {
 }
 
 .post-edit-modal {
-  width: min(960px, 100%);
+  width: min(960px, calc(100vw - 32px));
+  max-width: calc(100vw - 32px);
   max-height: calc(100vh - 32px);
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--surface);
   box-shadow: var(--shadow-lg);
   padding: 16px;
+  box-sizing: border-box;
 }
 
 .post-edit-head {
@@ -639,6 +697,69 @@ html[data-theme="light"] .admin-status.deleted {
 .post-edit-form {
   display: grid;
   gap: 8px;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.post-edit-form .form-group {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.post-edit-form .form-group > input,
+.post-edit-form .form-group > select,
+.post-edit-form .form-group > textarea {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+#eventsEditForm #event-post-select {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  inline-size: 100%;
+  max-inline-size: 100%;
+  box-sizing: border-box;
+  margin: 0;
+}
+
+#eventsEditForm #event-date-input {
+  width: 93%;
+  min-width: 0;
+  max-width: 93%;
+  inline-size: 93%;
+  max-inline-size: 93%;
+  box-sizing: border-box;
+  margin-right: auto;
+}
+
+#releaseEventForm #release-date {
+  width: 93%;
+  min-width: 0;
+  max-width: 93%;
+  inline-size: 93%;
+  max-inline-size: 93%;
+  box-sizing: border-box;
+  margin-right: auto;
+}
+
+#eventsEditForm #event-date-input::-webkit-date-and-time-value {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#eventsEditForm #event-date-input::-webkit-datetime-edit,
+#eventsEditForm #event-date-input::-webkit-datetime-edit-fields-wrapper {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 #posts-editor {
@@ -658,12 +779,30 @@ html[data-theme="light"] .admin-status.deleted {
 
 @media (max-width: 768px) {
   .post-edit-modal {
+    width: calc(100vw - 20px);
+    max-width: calc(100vw - 20px);
     max-height: calc(100vh - 20px);
     padding: 12px;
   }
 
+  .post-edit-form .form-group > input,
+  .post-edit-form .form-group > select {
+    inline-size: 100%;
+    max-inline-size: 100%;
+  }
+
+  .admin-container input[type="date"] {
+    font-size: 16px;
+  }
+
   .post-edit-actions {
-    flex-wrap: wrap;
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
+  }
+
+  .post-edit-actions > button {
+    width: 100%;
   }
 }
 
@@ -896,7 +1035,4 @@ html[data-theme="light"] .admin-status.deleted {
     align-self: flex-start;
   }
 
-  #release-date {
-    font-size: 16px;
-  }
 }

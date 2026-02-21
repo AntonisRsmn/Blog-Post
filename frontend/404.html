@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>No Access</title>
+  <title>404 - Page Not Found</title>
   <link rel="stylesheet" href="css/global.css" />
 </head>
 <body>
@@ -40,10 +40,12 @@
 
 <main>
   <div class="card" style="max-width: 520px; margin: 60px auto; text-align: center;">
-    <h1 style="margin-bottom: 12px;">Access denied</h1>
-    <p style="margin-bottom: 24px;">This account does not have permission to view the page.</p>
+    <h1 style="margin-bottom: 12px;">404</h1>
+    <p style="margin-bottom: 8px;">Page not found.</p>
+    <p style="margin-bottom: 24px; color: var(--text-muted);">The page you are looking for may have been moved or no longer exists.</p>
     <button type="button" onclick="window.location.href='/'">Go back home</button>
   </div>
+
   <section class="ad-block" aria-label="Advertisement">
     <p class="ad-label">Advertisement</p>
     <ins
@@ -114,7 +116,9 @@ document.getElementById('year').textContent = new Date().getFullYear();
 function updateThemeLabel() {
   const label = document.getElementById('theme-label');
   const mode = document.documentElement.getAttribute('data-theme') || 'light';
-  label.textContent = mode === 'dark' ? 'Dark' : 'Light';
+  if (label) {
+    label.textContent = mode === 'dark' ? 'Dark' : 'Light';
+  }
 }
 window.addEventListener('DOMContentLoaded', updateThemeLabel);
 </script>

@@ -7,6 +7,7 @@ const mongoose = require("mongoose");
 const rateLimit = require("express-rate-limit");
 
 const router = express.Router();
+const FEATURED_POST_LIMIT = 6;
 
 const summarizeLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -82,6 +83,8 @@ function toListPostPayload(post) {
     releaseDate: plain?.releaseDate || null,
     releaseType: plain?.releaseType || "",
     includeInCalendar: !!plain?.includeInCalendar,
+    featuredManual: !!plain?.featuredManual,
+    featuredAddedAt: plain?.featuredAddedAt || null,
     thumbnailUrl: resolvedThumbnail
   };
 }
@@ -326,8 +329,8 @@ async function generateAiSummary(post) {
 router.get("/", async (req, res) => {
   const listMode = String(req.query?.list || "") === "1";
   const selectFields = listMode
-    ? "title author authorId categories slug excerpt createdAt releaseDate releaseType includeInCalendar thumbnailUrl content"
-    : "title author authorId categories slug excerpt createdAt content releaseDate releaseType includeInCalendar thumbnailUrl";
+    ? "title author authorId categories slug excerpt createdAt releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl content"
+    : "title author authorId categories slug excerpt createdAt content releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl";
 
   const posts = await Post.find({ published: true })
     .select(selectFields)
@@ -359,8 +362,8 @@ router.get("/", async (req, res) => {
 router.get("/manage", auth, requireUploaderOrStaff, async (req, res) => {
   const listMode = String(req.query?.list || "") === "1";
   const selectFields = listMode
-    ? "title author authorId categories slug excerpt createdAt releaseDate releaseType includeInCalendar thumbnailUrl content"
-    : "title author authorId categories slug excerpt createdAt content releaseDate releaseType includeInCalendar thumbnailUrl";
+    ? "title author authorId categories slug excerpt createdAt releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl content"
+    : "title author authorId categories slug excerpt createdAt content releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl";
 
   const user = await getCurrentUser(req);
   if (!user) return res.status(404).json({ error: "User not found" });
@@ -451,7 +454,7 @@ router.post("/summarize", summarizeLimiter, async (req, res) => {
   return res.json(result);
 });
 
-router.get("/manage/:id", auth, requireUploaderOrStaff, async (req, res) => {
+router.get("/manage/by-id/:id", auth, requireUploaderOrStaff, async (req, res) => {
   if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
     return res.status(400).json({ error: "Invalid post id" });
   }
@@ -467,6 +470,93 @@ router.get("/manage/:id", auth, requireUploaderOrStaff, async (req, res) => {
   }
 
   return res.json(normalizePostCategoriesForOutput(post.toObject()));
+});
+
+router.get("/manage/featured", auth, requireUploaderOrStaff, async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  if (user.role !== "admin") {
+    return res.status(403).json({ error: "Only admin can manage featured posts" });
+  }
+
+  const featuredPosts = await Post.find({ featuredManual: true })
+    .select("title author authorId categories slug excerpt createdAt releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl content")
+    .sort({ featuredAddedAt: -1, createdAt: -1 })
+    .limit(FEATURED_POST_LIMIT)
+    .lean();
+
+  return res.json(featuredPosts.map(toListPostPayload));
+});
+
+router.post("/manage/featured", auth, requireUploaderOrStaff, async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  if (user.role !== "admin") {
+    return res.status(403).json({ error: "Only admin can manage featured posts" });
+  }
+
+  const postId = String(req.body?.postId || "").trim();
+  if (!mongoose.Types.ObjectId.isValid(postId)) {
+    return res.status(400).json({ error: "Invalid post id" });
+  }
+
+  const targetPost = await Post.findById(postId).select("_id featuredManual");
+  if (!targetPost) return res.status(404).json({ error: "Post not found" });
+
+  const featuredNow = await Post.find({ featuredManual: true })
+    .select("_id featuredAddedAt")
+    .sort({ featuredAddedAt: 1, createdAt: 1 })
+    .lean();
+
+  let removedCount = 0;
+  const targetAlreadyFeatured = featuredNow.some(item => String(item._id) === String(targetPost._id));
+
+  if (!targetAlreadyFeatured && featuredNow.length >= FEATURED_POST_LIMIT) {
+    const overflow = featuredNow.length - FEATURED_POST_LIMIT + 1;
+    const idsToRemove = featuredNow.slice(0, overflow).map(item => item._id);
+    if (idsToRemove.length) {
+      await Post.updateMany(
+        { _id: { $in: idsToRemove } },
+        { $set: { featuredManual: false, featuredAddedAt: null } }
+      );
+      removedCount = idsToRemove.length;
+    }
+  }
+
+  const now = new Date();
+  const updated = await Post.findByIdAndUpdate(
+    postId,
+    { $set: { featuredManual: true, featuredAddedAt: now } },
+    { new: true }
+  );
+
+  return res.json({
+    success: true,
+    removedCount,
+    post: toListPostPayload(updated)
+  });
+});
+
+router.delete("/manage/featured/:id", auth, requireUploaderOrStaff, async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  if (user.role !== "admin") {
+    return res.status(403).json({ error: "Only admin can manage featured posts" });
+  }
+
+  const postId = String(req.params?.id || "").trim();
+  if (!mongoose.Types.ObjectId.isValid(postId)) {
+    return res.status(400).json({ error: "Invalid post id" });
+  }
+
+  const updated = await Post.findByIdAndUpdate(
+    postId,
+    { $set: { featuredManual: false, featuredAddedAt: null } },
+    { new: true }
+  );
+
+  if (!updated) return res.status(404).json({ error: "Post not found" });
+  return res.json({ success: true });
 });
 
 // Get single post by slug

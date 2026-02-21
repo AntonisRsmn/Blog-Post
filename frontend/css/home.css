@@ -123,6 +123,143 @@
   font-size: 0.85rem;
 }
 
+.featured-rotator {
+  position: relative;
+  width: 100%;
+  margin-bottom: 6px;
+}
+
+.featured-rotator-track {
+  position: relative;
+  width: 100%;
+  min-height: 340px;
+}
+
+.featured-rotator-slide {
+  position: absolute;
+  inset: 0;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  opacity: 0;
+  transform: translateY(10px);
+  pointer-events: none;
+  transition: opacity 0.45s ease, transform 0.45s ease;
+  background: var(--surface);
+  display: block;
+}
+
+.featured-rotator-slide.is-active {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.featured-rotator-image {
+  width: 100%;
+  height: 340px;
+  object-fit: cover;
+  display: block;
+}
+
+.featured-rotator-overlay {
+  position: absolute;
+  inset: 0;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.42) 42%, rgba(0, 0, 0, 0.12) 100%);
+}
+
+.featured-rotator-badge {
+  align-self: flex-start;
+  padding: 5px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.3);
+  color: #fff;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.featured-rotator-title {
+  color: #fff;
+  font-size: 1.8rem;
+  line-height: 1.18;
+  margin: 0;
+  max-width: min(850px, 94%);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.featured-rotator-excerpt {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 1rem;
+  margin: 0;
+  max-width: min(740px, 94%);
+}
+
+.featured-rotator-meta {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.featured-rotator-dots {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.featured-rotator-progress {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 0;
+  width: auto;
+  height: 2px;
+  margin: 0;
+  border-radius: 0 0 14px 14px;
+  background: rgba(255, 255, 255, 0.2);
+  overflow: hidden;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.featured-rotator-progress-fill {
+  display: block;
+  width: 0%;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 0;
+}
+
+.featured-rotator-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  border: 0;
+  padding: 0;
+  background: var(--border-dark);
+  opacity: 0.85;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+.featured-rotator-dot:hover {
+  transform: scale(1.15);
+}
+
+.featured-rotator-dot.is-active {
+  background: var(--accent);
+  transform: scale(1.2);
+}
+
 /* Posts grid - Professional media layout */
 .home-grid {
   display: grid;
@@ -365,6 +502,20 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .featured-rotator-track,
+  .featured-rotator-image {
+    min-height: 300px;
+    height: 300px;
+  }
+
+  .featured-rotator-title {
+    font-size: 1.5rem;
+  }
+
+  .featured-rotator-excerpt {
+    font-size: 0.95rem;
+  }
+
   .post-card:first-child {
     grid-column: 1 / -1;
   }
@@ -427,6 +578,34 @@
   .post-card:first-child .post-card-meta {
     font-size: 0.8rem;
   }
+
+  .featured-rotator-track,
+  .featured-rotator-image {
+    min-height: 250px;
+    height: 250px;
+  }
+
+  .featured-rotator-overlay {
+    padding: 16px;
+    gap: 6px;
+  }
+
+  .featured-rotator-title {
+    font-size: 1.15rem;
+  }
+
+  .featured-rotator-excerpt {
+    font-size: 0.86rem;
+  }
+
+  .featured-rotator-meta {
+    font-size: 0.78rem;
+  }
+
+  .featured-rotator-progress {
+    height: 2px;
+    border-radius: 0 0 12px 12px;
+  }
 }
 
 @media (max-width: 640px) {
@@ -473,7 +652,7 @@
   right: 18px;
   transform: translateY(-50%);
   width: 250px;
-  max-height: calc(100vh - 100px);
+  max-height: calc(100vh - 210px);
   overflow: auto;
   background: var(--surface);
   border: 1px solid var(--border);
@@ -1005,6 +1184,10 @@ html[data-theme="dark"] .mobile-theme-switch::before {
     z-index: auto;
   }
 
+  .release-calendar {
+    max-height: calc(100vh - 120px);
+  }
+
   .release-calendar.is-open,
   .home-filters.is-open {
     display: block;
@@ -1248,7 +1431,7 @@ html[data-theme="dark"] .mobile-theme-switch::before {
     right: auto;
     width: 300px;
     max-width: calc(100vw - 24px);
-    max-height: calc(100vh - 100px);
+    max-height: calc(100vh - 130px);
     overflow: auto;
     margin: 0;
   }

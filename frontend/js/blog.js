@@ -12,6 +12,8 @@ const categoryVisibleCounts = new Map();
 let latestPaginationMode = "expand";
 const categoryPaginationModes = new Map();
 let homeRenderVersion = 0;
+let featuredRotationTimer = null;
+const FEATURED_ROTATION_MS = 5000;
 
 function normalizeCategoryLabel(value) {
   return String(value || "").replace(/\s+/g, " ").trim().toUpperCase();
@@ -24,6 +26,40 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/\"/g, "&quot;")
     .replace(/'/g, "&#39;");
+}
+
+function getDisplayExcerpt(post, maxLength = 170) {
+  const primary = post?.excerpt || post?.summary || "";
+  const secondary = post?.content || "";
+  let text = String(primary || secondary || "");
+
+  text = text
+    .replace(/<br\b[^>]*>/gi, " ")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]+)\]\((?:https?:\/\/|\/)[^)]+\)/g, "$1")
+    .replace(/https?:\/\/[^\s<]+/gi, " ")
+    .replace(/\b(?:image|images|paragraph)\b/gi, " ")
+    .replace(/\b[a-z0-9]{8,}\b(?=\s+[\p{L}\p{N}])/giu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const parts = text
+    .split(/(?<=[.!?;])\s+|\n+/)
+    .map(part => part.trim())
+    .filter(Boolean)
+    .filter(part => !/^[a-z0-9]{8,}$/i.test(part))
+    .filter(part => /[\p{L}\p{N}]{3,}/u.test(part));
+
+  if (parts.length) {
+    text = parts.join(" ");
+  }
+
+  if (!text) return "Read more...";
+  if (text.length <= maxLength) return text;
+
+  const shortened = text.slice(0, maxLength).trim().replace(/[\s.,;:!?-]+$/g, "");
+  return `${shortened}…`;
 }
 
 function toSafeHttpUrl(value) {
@@ -208,13 +244,138 @@ function getPostImageUrl(post) {
   return imageBlock.data?.file?.url || imageBlock.data?.url || imageBlock.data?.file || null;
 }
 
-function createPostCard(post) {
-  const card = document.createElement("a");
-  const encodedId = encodeURIComponent(String(post._id || ""));
-  const encodedSlug = encodeURIComponent(String(post.slug || ""));
-  card.href = encodedId
+function getPostHref(post) {
+  const encodedId = encodeURIComponent(String(post?._id || ""));
+  const encodedSlug = encodeURIComponent(String(post?.slug || ""));
+  return encodedId
     ? `post.html?id=${encodedId}${encodedSlug ? `&slug=${encodedSlug}` : ""}`
     : `post.html?slug=${encodedSlug}`;
+}
+
+function clearFeaturedRotationTimer() {
+  if (!featuredRotationTimer) return;
+  clearInterval(featuredRotationTimer);
+  featuredRotationTimer = null;
+}
+
+function createFeaturedRotator(posts) {
+  const featuredPosts = Array.isArray(posts) ? posts.slice(0, 6) : [];
+  if (!featuredPosts.length) return null;
+
+  const section = document.createElement("section");
+  section.className = "featured-rotator";
+  section.setAttribute("aria-label", "Featured posts");
+
+  const track = document.createElement("div");
+  track.className = "featured-rotator-track";
+
+  const dots = document.createElement("div");
+  dots.className = "featured-rotator-dots";
+
+  const progress = document.createElement("div");
+  progress.className = "featured-rotator-progress";
+  const progressFill = document.createElement("span");
+  progressFill.className = "featured-rotator-progress-fill";
+  progress.appendChild(progressFill);
+
+  const slideElements = [];
+  const dotElements = [];
+
+  featuredPosts.forEach((post, index) => {
+    const slide = document.createElement("a");
+    slide.className = "featured-rotator-slide";
+    slide.href = getPostHref(post);
+    slide.setAttribute("aria-hidden", index === 0 ? "false" : "true");
+
+    const imageUrl = toSafeHttpUrl(getPostImageUrl(post));
+    const date = new Date(post.createdAt).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric"
+    });
+    const safeTitle = escapeHtml(post.title || "Untitled");
+    const safeAuthor = escapeHtml(post.author || "");
+    const authorText = safeAuthor ? `By ${safeAuthor} • ` : "";
+
+    slide.innerHTML = `
+      ${imageUrl ? `<img src="${imageUrl}" alt="${safeTitle}" class="featured-rotator-image" loading="lazy" decoding="async">` : '<div class="featured-rotator-image" style="background: var(--bg-secondary);"></div>'}
+      <div class="featured-rotator-overlay">
+        <span class="featured-rotator-badge">Featured</span>
+        <h2 class="featured-rotator-title">${safeTitle}</h2>
+        <span class="featured-rotator-meta">${authorText}${date}</span>
+      </div>
+    `;
+
+    track.appendChild(slide);
+    slideElements.push(slide);
+
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = "featured-rotator-dot";
+    dot.setAttribute("aria-label", `Show featured post ${index + 1}`);
+    dot.setAttribute("aria-current", index === 0 ? "true" : "false");
+    dot.addEventListener("click", () => {
+      setActiveSlide(index);
+      restartTimer();
+    });
+
+    dots.appendChild(dot);
+    dotElements.push(dot);
+  });
+
+  section.appendChild(track);
+  if (featuredPosts.length > 1) {
+    track.appendChild(progress);
+    section.appendChild(dots);
+  }
+
+  let activeIndex = 0;
+
+  function setActiveSlide(nextIndex) {
+    activeIndex = (nextIndex + slideElements.length) % slideElements.length;
+    slideElements.forEach((slide, index) => {
+      slide.classList.toggle("is-active", index === activeIndex);
+      slide.setAttribute("aria-hidden", index === activeIndex ? "false" : "true");
+    });
+    dotElements.forEach((dot, index) => {
+      dot.classList.toggle("is-active", index === activeIndex);
+      dot.setAttribute("aria-current", index === activeIndex ? "true" : "false");
+    });
+
+    if (slideElements.length > 1) {
+      progressFill.style.transition = "none";
+      progressFill.style.width = "0%";
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          progressFill.style.transition = `width ${FEATURED_ROTATION_MS}ms linear`;
+          progressFill.style.width = "100%";
+        });
+      });
+    }
+  }
+
+  function restartTimer() {
+    clearFeaturedRotationTimer();
+    if (slideElements.length <= 1) return;
+    featuredRotationTimer = setInterval(() => {
+      const isConnected = document.body.contains(section);
+      if (!isConnected) {
+        clearFeaturedRotationTimer();
+        return;
+      }
+      setActiveSlide(activeIndex + 1);
+    }, FEATURED_ROTATION_MS);
+  }
+
+  setActiveSlide(0);
+  restartTimer();
+
+  return section;
+}
+
+function createPostCard(post) {
+  const card = document.createElement("a");
+  card.href = getPostHref(post);
   card.className = "post-card";
 
   const imageUrl = toSafeHttpUrl(getPostImageUrl(post));
@@ -224,7 +385,7 @@ function createPostCard(post) {
     day: "numeric"
   });
   const safeTitle = escapeHtml(post.title || "Untitled");
-  const safeExcerpt = escapeHtml(post.excerpt || "Read more...");
+  const safeExcerpt = escapeHtml(getDisplayExcerpt(post, 130));
   const safeAuthor = escapeHtml(post.author || "");
   const authorText = safeAuthor ? `By ${safeAuthor} • ` : "";
   const categoryText = Array.isArray(post.categories) && post.categories.length
@@ -393,6 +554,8 @@ function renderHomeSections() {
   const container = document.getElementById("home");
   if (!container) return;
 
+  clearFeaturedRotationTimer();
+
   container.className = "home-sections";
   container.innerHTML = "";
 
@@ -405,6 +568,35 @@ function renderHomeSections() {
   }
 
   const hasActiveCategoryFilter = selectedCategoryFilters.size > 0;
+  const latestSorted = getSortedPosts(filteredPosts);
+
+  if (!hasActiveCategoryFilter) {
+    const manualFeatured = latestSorted
+      .filter(post => !!post?.featuredManual)
+      .sort((a, b) => new Date(b.featuredAddedAt || 0) - new Date(a.featuredAddedAt || 0));
+
+    const featuredById = new Set();
+    const featuredCombined = [];
+
+    manualFeatured.forEach(post => {
+      const key = String(post?._id || "");
+      if (!key || featuredById.has(key) || featuredCombined.length >= 6) return;
+      featuredById.add(key);
+      featuredCombined.push(post);
+    });
+
+    latestSorted.forEach(post => {
+      const key = String(post?._id || "");
+      if (!key || featuredById.has(key) || featuredCombined.length >= 6) return;
+      featuredById.add(key);
+      featuredCombined.push(post);
+    });
+
+    const featuredRotator = createFeaturedRotator(featuredCombined);
+    if (featuredRotator) {
+      container.appendChild(featuredRotator);
+    }
+  }
 
   const latestSection = document.createElement("section");
   latestSection.className = "home-section latest-section";
@@ -422,7 +614,6 @@ function renderHomeSections() {
     latestHead.innerHTML = "<h2>Latest Posts</h2><p>Latest 7 posts</p>";
   }
 
-  const latestSorted = getSortedPosts(filteredPosts);
   latestVisibleCount = Math.min(Math.max(latestVisibleCount, HOME_BASE_VISIBLE_COUNT), latestSorted.length);
   const latestGrid = document.createElement("div");
   latestGrid.className = "home-grid";
@@ -743,10 +934,7 @@ async function loadPost() {
 
       const payload = await response.json().catch(() => ({}));
       const summary = String(payload?.summary || "").trim();
-      const source = String(payload?.source || "").toLowerCase();
-      const isAiSummary = source === "ai";
-
-      if (!summary || !isAiSummary) {
+      if (!summary) {
         throw new Error("summary-not-ai");
       }
 
