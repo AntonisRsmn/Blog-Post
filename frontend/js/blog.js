@@ -4,9 +4,13 @@ let releaseEvents = [];
 let calendarViewDate = new Date();
 const selectedCategoryFilters = new Set();
 const POSTS_PAGE_SIZE = 7;
-let latestVisibleCount = POSTS_PAGE_SIZE;
+const HOME_BASE_VISIBLE_COUNT = 7;
+const HOME_TOGGLE_STEP = 9;
+let latestVisibleCount = HOME_BASE_VISIBLE_COUNT;
 let searchVisibleCount = POSTS_PAGE_SIZE;
 const categoryVisibleCounts = new Map();
+let latestPaginationMode = "expand";
+const categoryPaginationModes = new Map();
 let homeRenderVersion = 0;
 
 function normalizeCategoryLabel(value) {
@@ -242,19 +246,30 @@ function createPostCard(post) {
 
 function ensureCategoryVisibleCount(category) {
   if (!categoryVisibleCounts.has(category)) {
-    categoryVisibleCounts.set(category, POSTS_PAGE_SIZE);
+    categoryVisibleCounts.set(category, HOME_BASE_VISIBLE_COUNT);
   }
   return categoryVisibleCounts.get(category);
 }
 
+function resetHomePaginationState() {
+  latestVisibleCount = HOME_BASE_VISIBLE_COUNT;
+  latestPaginationMode = "expand";
+  categoryVisibleCounts.clear();
+  categoryPaginationModes.clear();
+}
+
 function createShowMoreButton(onClick) {
+  return createPaginationToggleButton("Show more", onClick);
+}
+
+function createPaginationToggleButton(label, onClick, className = "") {
   const wrap = document.createElement("div");
   wrap.className = "show-more-wrap";
 
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "show-more-btn";
-  button.textContent = "Show more";
+  button.className = `show-more-btn ${className}`.trim();
+  button.textContent = label;
   button.addEventListener("click", onClick);
 
   wrap.appendChild(button);
@@ -262,34 +277,23 @@ function createShowMoreButton(onClick) {
 }
 
 function createLatestPaginationControls(totalCount) {
-  const wrap = document.createElement("div");
-  wrap.className = "show-more-wrap";
+  if (totalCount <= HOME_BASE_VISIBLE_COUNT) return null;
 
-  if (latestVisibleCount < totalCount) {
-    const showMoreButton = document.createElement("button");
-    showMoreButton.type = "button";
-    showMoreButton.className = "show-more-btn";
-    showMoreButton.textContent = "Show more";
-    showMoreButton.addEventListener("click", () => {
-      latestVisibleCount += POSTS_PAGE_SIZE;
-      renderHomeSections();
-    });
-    wrap.appendChild(showMoreButton);
-  }
+  const isCollapsing = latestPaginationMode === "collapse" && latestVisibleCount > HOME_BASE_VISIBLE_COUNT;
+  const buttonText = isCollapsing ? "Show less" : "Show more";
+  const buttonClass = isCollapsing ? "show-less-btn" : "";
 
-  if (latestVisibleCount > POSTS_PAGE_SIZE) {
-    const showLessButton = document.createElement("button");
-    showLessButton.type = "button";
-    showLessButton.className = "show-more-btn show-less-btn";
-    showLessButton.textContent = "Show less";
-    showLessButton.addEventListener("click", () => {
-      latestVisibleCount = POSTS_PAGE_SIZE;
-      renderHomeSections();
-    });
-    wrap.appendChild(showLessButton);
-  }
+  return createPaginationToggleButton(buttonText, () => {
+    if (isCollapsing) {
+      latestVisibleCount = Math.max(HOME_BASE_VISIBLE_COUNT, latestVisibleCount - HOME_TOGGLE_STEP);
+      latestPaginationMode = latestVisibleCount > HOME_BASE_VISIBLE_COUNT ? "collapse" : "expand";
+    } else {
+      latestVisibleCount = Math.min(totalCount, latestVisibleCount + HOME_TOGGLE_STEP);
+      latestPaginationMode = latestVisibleCount >= totalCount ? "collapse" : "expand";
+    }
 
-  return wrap.childElementCount ? wrap : null;
+    renderHomeSections();
+  }, buttonClass);
 }
 
 function getAllCategories(posts) {
@@ -338,9 +342,11 @@ function renderFilterSidebar(categories) {
           selectedCategoryFilters.delete(category);
         }
 
-        latestVisibleCount = POSTS_PAGE_SIZE;
+        latestVisibleCount = HOME_BASE_VISIBLE_COUNT;
+        latestPaginationMode = "expand";
         searchVisibleCount = POSTS_PAGE_SIZE;
         categoryVisibleCounts.clear();
+        categoryPaginationModes.clear();
 
         const searchInput = document.getElementById("search-input");
         const query = normalizeSearchText(searchInput?.value || "");
@@ -364,9 +370,11 @@ function renderFilterSidebar(categories) {
     clearButton.onclick = () => {
       if (!selectedCategoryFilters.size) return;
       selectedCategoryFilters.clear();
-      latestVisibleCount = POSTS_PAGE_SIZE;
+      latestVisibleCount = HOME_BASE_VISIBLE_COUNT;
+      latestPaginationMode = "expand";
       searchVisibleCount = POSTS_PAGE_SIZE;
       categoryVisibleCounts.clear();
+      categoryPaginationModes.clear();
       renderFilterSidebar(getAllCategories(allPosts));
 
       const searchInput = document.getElementById("search-input");
@@ -415,6 +423,7 @@ function renderHomeSections() {
   }
 
   const latestSorted = getSortedPosts(filteredPosts);
+  latestVisibleCount = Math.min(Math.max(latestVisibleCount, HOME_BASE_VISIBLE_COUNT), latestSorted.length);
   const latestGrid = document.createElement("div");
   latestGrid.className = "home-grid";
   latestSorted.slice(0, latestVisibleCount).forEach(post => {
@@ -451,7 +460,12 @@ function renderHomeSections() {
       const visibleCount = isSelectedCategory
         ? postsInCategoryAll.length
         : ensureCategoryVisibleCount(category);
-      const postsInCategory = postsInCategoryAll.slice(0, visibleCount);
+      const currentVisibleCount = Math.min(Math.max(visibleCount, HOME_BASE_VISIBLE_COUNT), postsInCategoryAll.length);
+      const postsInCategory = postsInCategoryAll.slice(0, currentVisibleCount);
+
+      if (!isSelectedCategory && !categoryPaginationModes.has(category)) {
+        categoryPaginationModes.set(category, "expand");
+      }
 
       if (!postsInCategory.length) return;
 
@@ -471,11 +485,28 @@ function renderHomeSections() {
       section.appendChild(head);
       section.appendChild(grid);
 
-      if (!isSelectedCategory && visibleCount < postsInCategoryAll.length) {
-        section.appendChild(createShowMoreButton(() => {
-          categoryVisibleCounts.set(category, visibleCount + POSTS_PAGE_SIZE);
-          renderHomeSections();
-        }));
+      if (!isSelectedCategory && postsInCategoryAll.length > HOME_BASE_VISIBLE_COUNT) {
+        const mode = categoryPaginationModes.get(category) === "collapse" && currentVisibleCount > HOME_BASE_VISIBLE_COUNT
+          ? "collapse"
+          : "expand";
+
+        section.appendChild(createPaginationToggleButton(
+          mode === "collapse" ? "Show less" : "Show more",
+          () => {
+            if (mode === "collapse") {
+              const nextCount = Math.max(HOME_BASE_VISIBLE_COUNT, currentVisibleCount - HOME_TOGGLE_STEP);
+              categoryVisibleCounts.set(category, nextCount);
+              categoryPaginationModes.set(category, nextCount > HOME_BASE_VISIBLE_COUNT ? "collapse" : "expand");
+            } else {
+              const nextCount = Math.min(postsInCategoryAll.length, currentVisibleCount + HOME_TOGGLE_STEP);
+              categoryVisibleCounts.set(category, nextCount);
+              categoryPaginationModes.set(category, nextCount >= postsInCategoryAll.length ? "collapse" : "expand");
+            }
+
+            renderHomeSections();
+          },
+          mode === "collapse" ? "show-less-btn" : ""
+        ));
       }
 
       container.appendChild(section);
@@ -670,17 +701,23 @@ async function loadPost() {
   const summaryLockKey = `article-summary-locked:${summaryId}`;
   const summaryTextKey = `article-summary-text:${summaryId}`;
 
+  function setSummaryMessage(message, isError = false) {
+    if (!summaryElement) return;
+    summaryElement.textContent = message;
+    summaryElement.classList.toggle("is-error", Boolean(isError));
+    if (summaryBox) summaryBox.hidden = false;
+  }
+
   try {
     const isLocked = summaryId && localStorage.getItem(summaryLockKey) === "1";
-    if (isLocked && summaryButton) {
+    const savedSummary = localStorage.getItem(summaryTextKey) || "";
+    if (savedSummary && summaryElement) {
+      setSummaryMessage(savedSummary, false);
+    }
+
+    if (isLocked && savedSummary && summaryButton) {
       summaryButton.disabled = true;
       summaryButton.textContent = "Summary Generated";
-
-      const savedSummary = localStorage.getItem(summaryTextKey) || "";
-      if (savedSummary && summaryElement) {
-        summaryElement.textContent = savedSummary;
-        if (summaryBox) summaryBox.hidden = false;
-      }
     }
   } catch {
   }
@@ -689,15 +726,9 @@ async function loadPost() {
     if (!summaryElement || !summaryButton) return;
     if (summaryButton.disabled) return;
 
-    try {
-      if (summaryId) {
-        localStorage.setItem(summaryLockKey, "1");
-      }
-    } catch {
-    }
-
     summaryButton.disabled = true;
     summaryButton.textContent = "Generating...";
+    summaryElement.classList.remove("is-error");
 
     try {
       const response = await fetch("/api/posts/summarize", {
@@ -707,31 +738,40 @@ async function loadPost() {
       });
 
       if (!response.ok) {
-        summaryElement.textContent = "Could not generate summary right now.";
-        if (summaryBox) summaryBox.hidden = false;
-        summaryButton.textContent = "Summary Generated";
-        return;
+        throw new Error("summary-request-failed");
       }
 
       const payload = await response.json().catch(() => ({}));
       const summary = String(payload?.summary || "").trim();
       const source = String(payload?.source || "").toLowerCase();
-      const suffix = source === "ai" ? "" : " (Auto)";
+      const isAiSummary = source === "ai";
 
-      summaryElement.textContent = summary || "Summary is not available for this post.";
-      if (summaryBox) summaryBox.hidden = false;
+      if (!summary || !isAiSummary) {
+        throw new Error("summary-not-ai");
+      }
+
+      setSummaryMessage(summary, false);
       summaryButton.textContent = "Summary Generated";
 
       try {
         if (summaryId) {
-          localStorage.setItem(summaryTextKey, summaryElement.textContent || "");
+          localStorage.setItem(summaryLockKey, "1");
+          localStorage.setItem(summaryTextKey, summary);
         }
       } catch {
       }
     } catch {
-      summaryElement.textContent = "Could not generate summary right now.";
-      if (summaryBox) summaryBox.hidden = false;
-      summaryButton.textContent = "Summary Generated";
+      setSummaryMessage("Can't generate summary right now.", true);
+      summaryButton.disabled = false;
+      summaryButton.textContent = "Generate Summary";
+
+      try {
+        if (summaryId) {
+          localStorage.removeItem(summaryLockKey);
+          localStorage.removeItem(summaryTextKey);
+        }
+      } catch {
+      }
     }
   });
 
@@ -1185,8 +1225,7 @@ function filterPosts(query) {
 }
 
 function displayAllPosts() {
-  latestVisibleCount = POSTS_PAGE_SIZE;
-  categoryVisibleCounts.clear();
+  resetHomePaginationState();
   renderHomeSections();
 }
 
@@ -1217,6 +1256,24 @@ function displayPosts(posts) {
   }
 }
 
+function initializeBackToTopButton() {
+  const button = document.getElementById("back-to-top");
+  if (!button) return;
+
+  const updateVisibility = () => {
+    const isVisible = window.scrollY > 320;
+    button.classList.toggle("is-visible", isVisible);
+    button.setAttribute("aria-hidden", String(!isVisible));
+  };
+
+  button.addEventListener("click", () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+
+  window.addEventListener("scroll", updateVisibility, { passive: true });
+  updateVisibility();
+}
+
 // Load posts on page load
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
@@ -1228,6 +1285,7 @@ if (document.readyState === 'loading') {
       initializeSearch();
       initializeReleaseCalendar();
       initializeMobilePanelToggles();
+      initializeBackToTopButton();
     }
 
     if (hasPost) {
@@ -1243,6 +1301,7 @@ if (document.readyState === 'loading') {
     initializeSearch();
     initializeReleaseCalendar();
     initializeMobilePanelToggles();
+    initializeBackToTopButton();
   }
 
   if (hasPost) {

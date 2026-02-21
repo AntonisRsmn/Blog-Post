@@ -12,6 +12,7 @@
   --accent: #d4af37;
   --accent-dark: #b68d1f;
   --accent-light: #f4e8bf;
+  --error: #b91c1c;
   
   /* UI elements */
   --border: #e6dbc3;
@@ -38,6 +39,7 @@
   --accent: #d4af37;
   --accent-dark: #b68d1f;
   --accent-light: #2b2312;
+  --error: #f87171;
   
   /* UI elements */
   --border: #2b2312;

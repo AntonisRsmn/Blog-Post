@@ -41,6 +41,11 @@ article h1 {
   line-height: 1.7;
 }
 
+.article-summary.is-error {
+  color: var(--error);
+  font-weight: 600;
+}
+
 .article-summary-tools {
   margin: 0 0 14px;
 }
@@ -313,6 +318,13 @@ article h1 {
   
   .article-meta {
     flex-direction: column;
-    gap: 8px;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 0.92rem;
+    padding: 10px 0 14px;
+  }
+
+  .article-meta span[aria-hidden="true"] {
+    display: none !important;
   }
 }
