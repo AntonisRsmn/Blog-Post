@@ -531,6 +531,8 @@ html[data-theme="light"] .admin-status.deleted {
 
 .analytics-item-title {
   min-width: 0;
+  font-size: 1.02rem;
+  line-height: 1.35;
 }
 
 .analytics-item-meta {
@@ -1130,6 +1132,8 @@ html[data-theme="light"] .admin-status.deleted {
   }
 
   .analytics-list .analytics-item-title {
+    font-size: 0.95rem;
+    line-height: 1.32;
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
