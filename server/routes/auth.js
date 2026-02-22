@@ -2,6 +2,7 @@ const express = require("express");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User");
+const Post = require("../models/Post");
 const StaffAccess = require("../models/StaffAccess");
 const auth = require("../middleware/auth");
 
@@ -38,6 +39,20 @@ function isStrongPassword(password) {
   const hasSymbol = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/.test(value);
   const isLongEnough = value.length >= 8;
   return hasLetter && hasNumber && hasSymbol && isLongEnough;
+}
+
+function normalizeProfileUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  try {
+    const parsed = new URL(raw);
+    const isHttp = parsed.protocol === "https:" || parsed.protocol === "http:";
+    if (!isHttp) return null;
+    return raw;
+  } catch {
+    return null;
+  }
 }
 
 function getCookieOptions() {
@@ -149,7 +164,7 @@ router.post("/login", async (req, res) => {
 });
 
 router.get("/profile", auth, async (req, res) => {
-  const user = await User.findById(req.user.userId).select("email firstName lastName username avatarUrl role");
+  const user = await User.findById(req.user.userId).select("email firstName lastName username avatarUrl websiteUrl githubUrl linkedinUrl instagramUrl twitterUrl tiktokUrl role");
   if (!user) return res.status(404).json({ error: "User not found" });
   res.json({
     _id: user._id,
@@ -158,12 +173,57 @@ router.get("/profile", auth, async (req, res) => {
     lastName: user.lastName,
     username: user.username,
     avatarUrl: user.avatarUrl,
+    websiteUrl: user.websiteUrl,
+    githubUrl: user.githubUrl,
+    linkedinUrl: user.linkedinUrl,
+    instagramUrl: user.instagramUrl,
+    twitterUrl: user.twitterUrl,
+    tiktokUrl: user.tiktokUrl,
     role: user.role
   });
 });
 
+router.get("/author", async (req, res) => {
+  const authorName = sanitizePlainText(req.query?.name, 120);
+  if (!authorName) {
+    return res.status(400).json({ error: "Author name is required" });
+  }
+
+  const escaped = authorName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const byUsername = await User.findOne({ username: new RegExp(`^${escaped}$`, "i") })
+    .select("username firstName lastName avatarUrl websiteUrl githubUrl linkedinUrl instagramUrl twitterUrl tiktokUrl")
+    .lean();
+
+  const byEmail = !byUsername
+    ? await User.findOne({ email: String(authorName || "").trim().toLowerCase() })
+      .select("username firstName lastName avatarUrl websiteUrl githubUrl linkedinUrl instagramUrl twitterUrl tiktokUrl")
+      .lean()
+    : null;
+
+  const user = byUsername || byEmail;
+  if (!user) {
+    return res.status(404).json({ error: "Author not found" });
+  }
+
+  const fullName = [user.firstName, user.lastName].map(item => String(item || "").trim()).filter(Boolean).join(" ");
+  const displayName = String(user.username || "").trim() || fullName || authorName;
+
+  return res.json({
+    name: displayName,
+    avatarUrl: String(user.avatarUrl || "").trim(),
+    links: {
+      website: String(user.websiteUrl || "").trim(),
+      github: String(user.githubUrl || "").trim(),
+      linkedin: String(user.linkedinUrl || "").trim(),
+      instagram: String(user.instagramUrl || "").trim(),
+      twitter: String(user.twitterUrl || "").trim(),
+      tiktok: String(user.tiktokUrl || "").trim()
+    }
+  });
+});
+
 router.put("/profile", auth, async (req, res) => {
-  const { firstName, lastName, username, avatarUrl } = req.body;
+  const { firstName, lastName, username, avatarUrl, websiteUrl, githubUrl, linkedinUrl, instagramUrl, twitterUrl, tiktokUrl } = req.body;
   const updates = {};
 
   if (typeof firstName === "string") {
@@ -194,9 +254,70 @@ router.put("/profile", auth, async (req, res) => {
     }
   }
 
+  if (typeof websiteUrl === "string") {
+    const normalized = normalizeProfileUrl(websiteUrl);
+    if (normalized === null) return res.status(400).json({ error: "Invalid website URL" });
+    updates.websiteUrl = normalized;
+  }
+
+  if (typeof githubUrl === "string") {
+    const normalized = normalizeProfileUrl(githubUrl);
+    if (normalized === null) return res.status(400).json({ error: "Invalid GitHub URL" });
+    updates.githubUrl = normalized;
+  }
+
+  if (typeof linkedinUrl === "string") {
+    const normalized = normalizeProfileUrl(linkedinUrl);
+    if (normalized === null) return res.status(400).json({ error: "Invalid LinkedIn URL" });
+    updates.linkedinUrl = normalized;
+  }
+
+  if (typeof instagramUrl === "string") {
+    const normalized = normalizeProfileUrl(instagramUrl);
+    if (normalized === null) return res.status(400).json({ error: "Invalid Instagram URL" });
+    updates.instagramUrl = normalized;
+  }
+
+  if (typeof twitterUrl === "string") {
+    const normalized = normalizeProfileUrl(twitterUrl);
+    if (normalized === null) return res.status(400).json({ error: "Invalid Twitter/X URL" });
+    updates.twitterUrl = normalized;
+  }
+
+  if (typeof tiktokUrl === "string") {
+    const normalized = normalizeProfileUrl(tiktokUrl);
+    if (normalized === null) return res.status(400).json({ error: "Invalid TikTok URL" });
+    updates.tiktokUrl = normalized;
+  }
+
+  const existingUser = await User.findById(req.user.userId).select("_id email username");
+  if (!existingUser) return res.status(404).json({ error: "User not found" });
+
+  const previousAuthorName = String(existingUser.username || existingUser.email || "").trim();
+
   const user = await User.findByIdAndUpdate(req.user.userId, updates, {
     new: true
-  }).select("email firstName lastName username avatarUrl role");
+  }).select("email firstName lastName username avatarUrl websiteUrl githubUrl linkedinUrl instagramUrl twitterUrl tiktokUrl role");
+
+  const nextAuthorName = String(user.username || user.email || "").trim();
+
+  if (nextAuthorName && previousAuthorName !== nextAuthorName) {
+    await Post.updateMany(
+      {
+        $or: [
+          { authorId: user._id },
+          { authorId: { $exists: false }, author: previousAuthorName },
+          { authorId: null, author: previousAuthorName }
+        ]
+      },
+      {
+        $set: {
+          author: nextAuthorName,
+          authorId: user._id
+        }
+      }
+    );
+  }
 
   res.json({
     _id: user._id,
@@ -205,6 +326,12 @@ router.put("/profile", auth, async (req, res) => {
     lastName: user.lastName,
     username: user.username,
     avatarUrl: user.avatarUrl,
+    websiteUrl: user.websiteUrl,
+    githubUrl: user.githubUrl,
+    linkedinUrl: user.linkedinUrl,
+    instagramUrl: user.instagramUrl,
+    twitterUrl: user.twitterUrl,
+    tiktokUrl: user.tiktokUrl,
     role: user.role
   });
 });

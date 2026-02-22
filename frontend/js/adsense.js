@@ -1,5 +1,5 @@
 (function () {
-  const ENABLE_ADS = false;
+  const ENABLE_ADS = true;
 
   const ADSENSE_CONFIG = {
     clientId: "ca-pub-XXXXXXXXXXXXXXXX",
@@ -72,6 +72,15 @@
       return;
     }
 
+    const preferences = typeof window.getCookiePreferences === "function"
+      ? window.getCookiePreferences()
+      : { ads: false };
+
+    if (!preferences.ads) {
+      setAdBlocksVisible(false);
+      return;
+    }
+
     if (hasPlaceholderValues(adNodes)) {
       setAdBlocksVisible(false);
       console.info("AdSense placeholders detected. Replace clientId and slot IDs in frontend/js/adsense.js to enable ads.");
@@ -93,4 +102,5 @@
   }
 
   document.addEventListener("DOMContentLoaded", initializeAds);
+  window.addEventListener("cookiePreferencesChanged", initializeAds);
 })();

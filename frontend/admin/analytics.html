@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analytics</title>
+  <link rel="stylesheet" href="../css/global.css" />
+  <link rel="stylesheet" href="../css/admin.css" />
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <a href="/" class="logo">Rusman</a>
+    <button type="button" id="mobile-menu-toggle" class="mobile-menu-toggle" aria-label="Open menu" aria-controls="mobile-sidebar" aria-expanded="false">☰</button>
+    <nav>
+      <a href="/" class="nav-link">Home</a>
+      <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+      <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+      <a href="/admin/profile.html" class="nav-link" data-auth-link>Profile</a>
+      <button id="theme-toggle"></button>
+    </nav>
+  </div>
+</header>
+
+<div id="mobile-sidebar-backdrop" class="mobile-sidebar-backdrop" hidden></div>
+<aside id="mobile-sidebar" class="mobile-sidebar" aria-label="Mobile navigation" aria-hidden="true">
+  <div class="mobile-sidebar-head">
+    <strong>Menu</strong>
+    <button type="button" id="mobile-sidebar-close" class="mobile-sidebar-close" aria-label="Close menu">✕</button>
+  </div>
+  <nav class="mobile-sidebar-nav">
+    <a href="/" class="nav-link">Home</a>
+    <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+    <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+    <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
+    <div class="mobile-theme-row">
+      <span>Theme</span>
+      <button type="button" id="mobile-theme-toggle" class="mobile-theme-switch" aria-label="Toggle theme"></button>
+    </div>
+  </nav>
+</aside>
+
+<main>
+  <div class="admin-container">
+    <div class="admin-page-head">
+      <h1 class="admin-title">Analytics Dashboard</h1>
+      <p class="admin-subtitle">Track post performance with views, top posts, categories, and authors.</p>
+    </div>
+
+    <div id="status" class="admin-status" role="status" aria-live="polite"></div>
+
+    <div class="admin-section analytics-overview-section" style="margin-bottom: 16px;">
+      <div class="latest-posts-head">
+        <div class="latest-posts-head-copy">
+          <h2>Overview</h2>
+          <p class="release-manager-hint">Live values from published posts and tracked article views.</p>
+        </div>
+      </div>
+      <div id="analytics-totals" class="analytics-overview-grid"></div>
+    </div>
+
+    <div class="admin-side-grid analytics-grid">
+      <div class="admin-section">
+        <div class="latest-posts-head">
+          <div class="latest-posts-head-copy">
+            <h2>Top Posts</h2>
+            <p class="release-manager-hint">Top 10 most viewed published posts.</p>
+          </div>
+          <a href="/admin/analytics-posts.html" class="admin-link-btn">Show all</a>
+        </div>
+        <ul id="analytics-top-posts" class="posts-list analytics-list"></ul>
+      </div>
+
+      <div class="admin-section">
+        <div class="latest-posts-head">
+          <div class="latest-posts-head-copy">
+            <h2>Top Categories</h2>
+            <p class="release-manager-hint">Top 10 categories ranked by accumulated post views.</p>
+          </div>
+          <a href="/admin/analytics-categories.html" class="admin-link-btn">Show all</a>
+        </div>
+        <ul id="analytics-top-categories" class="posts-list analytics-list"></ul>
+      </div>
+
+      <div class="admin-section">
+        <div class="latest-posts-head">
+          <div class="latest-posts-head-copy">
+            <h2>Top Authors</h2>
+            <p class="release-manager-hint">Top 10 authors ranked by total views.</p>
+          </div>
+          <a href="/admin/analytics-authors.html" class="admin-link-btn">Show all</a>
+        </div>
+        <ul id="analytics-top-authors" class="posts-list analytics-list"></ul>
+      </div>
+
+      <div class="admin-section">
+        <div class="latest-posts-head">
+          <div class="latest-posts-head-copy">
+            <h2>How to read this</h2>
+            <p class="release-manager-hint">Quick interpretation guide.</p>
+          </div>
+        </div>
+        <ul class="posts-list analytics-list analytics-guide-list">
+          <li class="post-item"><span class="post-item-title">Published Posts</span><span class="release-event-date">Total visible posts included in analytics.</span></li>
+          <li class="post-item"><span class="post-item-title">Total Views</span><span class="release-event-date">Increments when a reader opens a post page.</span></li>
+          <li class="post-item"><span class="post-item-title">Top 10 Lists</span><span class="release-event-date">Sorted descending by tracked views with fixed rank numbers.</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div class="footer-left">
+      <div class="brand-small">
+        Antonios <span style="color:var(--accent)">Rusman</span>
+      </div>
+      <div class="muted small">© <span id="year"></span> <a href="https://rusman.gr" target="_blank" rel="noopener">Antonios Rusman</a> — All rights reserved.</div>
+    </div>
+
+    <div class="footer-center">
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <a href="/tos.html">Terms of Service</a>
+        <a href="/privacy.html">Privacy Policy</a>
+      </nav>
+    </div>
+
+    <div class="footer-right" aria-hidden="false">
+      <div class="social" role="list">
+        <a class="social-link" href="mailto:info@rusman.gr" aria-label="Email" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <path d="M3 6.5h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-11z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M21 6.5L12 13 3 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+
+        <a class="social-link" href="https://github.com/AntonisRsmn" target="_blank" rel="noopener" aria-label="GitHub" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <path d="M12 2C7.58 2 4 5.58 4 10c0 3.54 2.29 6.54 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.56 7.56 0 0 1 12 6.8c.68.003 1.36.092 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 20 10c0-4.42-3.58-8-8-8z" fill="currentColor"/>
+          </svg>
+        </a>
+
+        <a class="social-link" href="https://www.linkedin.com/in/antonis-rusman-a46424319/" target="_blank" rel="noopener" aria-label="LinkedIn" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M7.5 11.5v5M7.5 8.5v.01M12 16.5v-4c0-1 .6-1.5 1.4-1.5.8 0 1.6.5 1.6 1.6v3.9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+
+        <a class="social-link" href="https://instagram.com/_.rusman._" target="_blank" rel="noopener" aria-label="Instagram" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <rect x="3.5" y="3.5" width="17" height="17" rx="4" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="17.5" cy="6.5" r="0.6" fill="currentColor"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script src="../js/theme.js"></script>
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+function showStatus(message, type = "") {
+  const statusEl = document.getElementById("status");
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.classList.remove("success", "error", "deleted", "show");
+  if (type) statusEl.classList.add(type);
+  statusEl.classList.add("show");
+}
+
+function renderList(listId, items, itemRenderer) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  list.innerHTML = "";
+
+  if (!Array.isArray(items) || !items.length) {
+    list.innerHTML = '<li class="post-item"><span class="release-event-date">No data yet.</span></li>';
+    return;
+  }
+
+  items.forEach(item => {
+    const li = document.createElement("li");
+    li.className = "post-item";
+    li.innerHTML = itemRenderer(item);
+    list.appendChild(li);
+  });
+}
+
+function renderRankLabel(rank) {
+  const value = Number(rank || 0);
+  if (!Number.isFinite(value) || value < 1) return "-";
+  return `${value}.`;
+}
+
+async function loadAnalyticsPage() {
+  try {
+    const response = await fetch("/api/posts/manage/analytics");
+    if (!response.ok) {
+      showStatus("Could not load analytics data.", "error");
+      return;
+    }
+
+    const payload = await response.json().catch(() => ({}));
+    const totals = payload?.totals || {};
+    const totalsBox = document.getElementById("analytics-totals");
+
+    if (totalsBox) {
+      totalsBox.innerHTML = `
+        <div class="post-item analytics-total-card">
+          <div class="release-event-date">Published Posts</div>
+          <div class="post-item-title analytics-total-value">${Number(totals.posts || 0).toLocaleString()}</div>
+        </div>
+        <div class="post-item analytics-total-card">
+          <div class="release-event-date">Total Views</div>
+          <div class="post-item-title analytics-total-value">${Number(totals.views || 0).toLocaleString()}</div>
+        </div>
+      `;
+    }
+
+    renderList("analytics-top-posts", payload?.topPosts, item => {
+      const safePostId = encodeURIComponent(item?._id || "");
+      const safeSlug = encodeURIComponent(item?.slug || "");
+      const href = `/post.html?id=${safePostId}${safeSlug ? `&slug=${safeSlug}` : ""}`;
+      return `
+        <span class="analytics-rank">${renderRankLabel(item?.rank)}</span>
+        <a class="post-item-title analytics-item-title" href="${href}">${item?.title || "Untitled"}</a>
+        <span class="release-event-date analytics-item-meta">${Number(item?.views || 0).toLocaleString()} views</span>
+      `;
+    });
+
+    renderList("analytics-top-categories", payload?.topCategories, item => `
+      <span class="analytics-rank">${renderRankLabel(item?.rank)}</span>
+      <span class="post-item-title analytics-item-title">${item?.name || "UNCATEGORIZED"}</span>
+      <span class="release-event-date analytics-item-meta">${Number(item?.views || 0).toLocaleString()} views</span>
+    `);
+
+    renderList("analytics-top-authors", payload?.topAuthors, item => `
+      <span class="analytics-rank">${renderRankLabel(item?.rank)}</span>
+      <span class="post-item-title analytics-item-title">${item?.name || "Unknown"}</span>
+      <span class="release-event-date analytics-item-meta">${Number(item?.views || 0).toLocaleString()} views</span>
+    `);
+
+    showStatus("Analytics loaded.", "success");
+    setTimeout(() => {
+      const statusEl = document.getElementById("status");
+      if (!statusEl) return;
+      statusEl.classList.remove("show", "success", "error", "deleted");
+      statusEl.textContent = "";
+    }, 3500);
+  } catch {
+    showStatus("Could not reach the server.", "error");
+  }
+}
+
+loadAnalyticsPage();
+</script>
+
+</body>
+</html>

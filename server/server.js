@@ -8,6 +8,7 @@ const jwt = require("jsonwebtoken");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const User = require("./models/User");
+const Post = require("./models/Post");
 
 const authRoutes = require("./routes/auth");
 const postRoutes = require("./routes/posts");
@@ -101,6 +102,61 @@ app.use("/api/releases", releaseRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/staff", staffRoutes);
+
+app.get("/sitemap.xml", async (req, res) => {
+  const host = req.get("host");
+  const configuredBase = String(process.env.SITE_URL || "").trim();
+  const fallbackBase = `${req.protocol}://${host}`;
+  const baseUrl = (configuredBase || fallbackBase).replace(/\/$/, "");
+
+  const staticPaths = ["/", "/privacy.html", "/tos.html", "/post.html"];
+
+  const posts = await Post.find({ published: true })
+    .select("slug createdAt updatedAt")
+    .sort({ updatedAt: -1 })
+    .lean();
+
+  const xmlEscape = (value) => String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+
+  const urls = [];
+
+  staticPaths.forEach((pathName) => {
+    urls.push({
+      loc: `${baseUrl}${pathName}`,
+      lastmod: new Date().toISOString()
+    });
+  });
+
+  posts.forEach((post) => {
+    const slug = String(post?.slug || "").trim();
+    if (!slug) return;
+    const lastmodSource = post?.updatedAt || post?.createdAt || new Date();
+    urls.push({
+      loc: `${baseUrl}/post.html?slug=${encodeURIComponent(slug)}`,
+      lastmod: new Date(lastmodSource).toISOString()
+    });
+  });
+
+  const body = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+    ...urls.map((entry) => [
+      "  <url>",
+      `    <loc>${xmlEscape(entry.loc)}</loc>`,
+      `    <lastmod>${xmlEscape(entry.lastmod)}</lastmod>`,
+      "  </url>"
+    ].join("\n")),
+    "</urlset>"
+  ].join("\n");
+
+  res.setHeader("Content-Type", "application/xml; charset=UTF-8");
+  return res.status(200).send(body);
+});
 
 // Serve frontend
 const frontendPath = path.join(__dirname, "..", "frontend");

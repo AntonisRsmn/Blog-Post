@@ -487,6 +487,65 @@ html[data-theme="light"] .admin-status.deleted {
   font-size: 0.85rem;
 }
 
+.analytics-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.analytics-total-card {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.analytics-total-card .release-event-date {
+  white-space: normal;
+}
+
+.analytics-total-value {
+  font-size: 1.2rem;
+}
+
+.analytics-list .post-item {
+  gap: 12px;
+}
+
+.analytics-grid {
+  align-items: stretch;
+}
+
+.analytics-grid > .admin-section {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
+
+.analytics-rank {
+  width: 32px;
+  min-width: 32px;
+  text-align: right;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.analytics-item-title {
+  min-width: 0;
+}
+
+.analytics-item-meta {
+  margin-left: auto;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.analytics-guide-list .release-event-date {
+  margin-left: 0;
+  text-align: left;
+  white-space: normal;
+  overflow: visible;
+}
+
 .staff-entry-main {
   display: flex;
   flex-direction: column;
@@ -547,6 +606,18 @@ html[data-theme="light"] .admin-status.deleted {
 
 .posts-list-actions-left {
   justify-content: flex-start;
+}
+
+.dashboard-posts-section,
+.dashboard-events-section {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-posts-section .posts-list,
+.dashboard-events-section .posts-list {
+  flex: 1;
 }
 
 .latest-posts-head {
@@ -1033,6 +1104,35 @@ html[data-theme="light"] .admin-status.deleted {
 
   .latest-posts-head .admin-link-btn-primary {
     align-self: flex-start;
+  }
+
+  .analytics-overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-list .post-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .analytics-list .analytics-rank {
+    width: auto;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .analytics-list .analytics-item-title,
+  .analytics-list .analytics-item-meta {
+    width: 100%;
+    margin-left: 0;
+    text-align: left;
+  }
+
+  .analytics-list .analytics-item-title {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
 
 }

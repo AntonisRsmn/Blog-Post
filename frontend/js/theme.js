@@ -1,6 +1,12 @@
 // Theme switcher for blog
 const themeToggle = document.getElementById('theme-toggle');
 const mobileThemeToggle = document.getElementById('mobile-theme-toggle');
+const COOKIE_PREFERENCES_KEY = 'cookie-preferences-v1';
+const DEFAULT_COOKIE_PREFERENCES = {
+  essential: true,
+  analytics: false,
+  ads: false
+};
 
 function logout() {
   document.cookie = 'token=; Max-Age=0; path=/';
@@ -10,6 +16,240 @@ function logout() {
 window.logout = logout;
 let todayEventsRotationTimer = null;
 const TODAY_EVENTS_ROTATION_MS = 5000;
+
+function normalizeCookiePreferences(value) {
+  const input = value && typeof value === 'object' ? value : {};
+  return {
+    consentSet: Boolean(input.consentSet || input.updatedAt),
+    essential: true,
+    analytics: Boolean(input.analytics),
+    ads: Boolean(input.ads)
+  };
+}
+
+function readStoredCookiePreferences() {
+  try {
+    const raw = localStorage.getItem(COOKIE_PREFERENCES_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return normalizeCookiePreferences(parsed);
+  } catch {
+    return null;
+  }
+}
+
+function saveCookiePreferences(preferences) {
+  const normalized = normalizeCookiePreferences(preferences);
+  try {
+    localStorage.setItem(COOKIE_PREFERENCES_KEY, JSON.stringify({
+      ...normalized,
+      consentSet: true,
+      updatedAt: new Date().toISOString()
+    }));
+  } catch {
+  }
+
+  window.dispatchEvent(new CustomEvent('cookiePreferencesChanged', {
+    detail: normalized
+  }));
+
+  return normalized;
+}
+
+window.getCookiePreferences = function getCookiePreferencesPublic() {
+  return readStoredCookiePreferences() || { ...DEFAULT_COOKIE_PREFERENCES };
+};
+
+function ensureCookieSettingsButton() {
+  let link = document.getElementById('cookie-settings-link');
+  if (link) return link;
+
+  const footerNav = document.querySelector('.footer-nav');
+  if (!footerNav) return null;
+
+  link = document.createElement('a');
+  link.id = 'cookie-settings-link';
+  link.href = '#';
+  link.textContent = 'Cookie settings';
+
+  const termsLink = footerNav.querySelector('a[href="/tos.html"]');
+  const privacyLink = footerNav.querySelector('a[href="/privacy.html"]');
+
+  if (termsLink && privacyLink && termsLink.nextSibling === privacyLink) {
+    footerNav.insertBefore(link, privacyLink);
+  } else if (termsLink?.nextSibling) {
+    footerNav.insertBefore(link, termsLink.nextSibling);
+  } else if (privacyLink) {
+    footerNav.insertBefore(link, privacyLink);
+  } else {
+    footerNav.appendChild(link);
+  }
+
+  return link;
+}
+
+function ensureCookieBanner() {
+  let banner = document.getElementById('cookie-consent-banner');
+  if (banner) return banner;
+
+  banner = document.createElement('section');
+  banner.id = 'cookie-consent-banner';
+  banner.className = 'cookie-consent-banner';
+  banner.hidden = true;
+  banner.innerHTML = `
+    <div class="cookie-consent-mini" role="dialog" aria-live="polite" aria-label="Cookie consent">
+      <p>We use cookies for core functionality, analytics, and ads.</p>
+      <div class="cookie-consent-mini-actions">
+        <button type="button" id="cookie-consent-accept-all">Accept cookies</button>
+        <button type="button" id="cookie-consent-open-manage" class="secondary">Manage preferences</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(banner);
+  return banner;
+}
+
+function ensureCookieManageModal() {
+  let overlay = document.getElementById('cookie-manage-overlay');
+  if (overlay) return overlay;
+
+  overlay = document.createElement('section');
+  overlay.id = 'cookie-manage-overlay';
+  overlay.className = 'cookie-manage-overlay';
+  overlay.hidden = true;
+  overlay.innerHTML = `
+    <div class="cookie-manage-card" role="dialog" aria-modal="true" aria-labelledby="cookie-manage-title">
+      <div class="cookie-manage-head">
+        <h3 id="cookie-manage-title">Manage cookie preferences</h3>
+        <button type="button" id="cookie-manage-close" class="secondary" aria-label="Close">Close</button>
+      </div>
+      <p>Choose what you allow. Essential cookies are always enabled.</p>
+
+      <div class="cookie-consent-grid">
+        <label class="cookie-consent-item">
+          <input type="checkbox" checked disabled>
+          <span><strong>Essential</strong><small>Always on</small></span>
+        </label>
+        <label class="cookie-consent-item">
+          <input type="checkbox" id="cookie-manage-analytics">
+          <span><strong>Analytics</strong><small>Helps us measure page performance</small></span>
+        </label>
+        <label class="cookie-consent-item">
+          <input type="checkbox" id="cookie-manage-ads">
+          <span><strong>Ads</strong><small>Allows personalized ad serving</small></span>
+        </label>
+      </div>
+
+      <div class="cookie-consent-actions">
+        <button type="button" id="cookie-manage-essential" class="secondary">Essential only</button>
+        <button type="button" id="cookie-manage-save">Save preferences</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+function applyCookieUiVisibility(hasSavedPreferences) {
+  const banner = document.getElementById('cookie-consent-banner');
+  const settingsButton = ensureCookieSettingsButton();
+  if (banner) banner.hidden = Boolean(hasSavedPreferences);
+  if (settingsButton) settingsButton.hidden = false;
+}
+
+function openCookiePreferences() {
+  const overlay = ensureCookieManageModal();
+  const current = readStoredCookiePreferences() || DEFAULT_COOKIE_PREFERENCES;
+
+  const analyticsInput = overlay.querySelector('#cookie-manage-analytics');
+  const adsInput = overlay.querySelector('#cookie-manage-ads');
+  if (analyticsInput) analyticsInput.checked = Boolean(current.analytics);
+  if (adsInput) adsInput.checked = Boolean(current.ads);
+
+  overlay.hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeCookiePreferences() {
+  const overlay = document.getElementById('cookie-manage-overlay');
+  if (!overlay) return;
+  overlay.hidden = true;
+  document.body.style.overflow = '';
+}
+
+window.openCookiePreferences = openCookiePreferences;
+
+function initializeCookiePreferences() {
+  const banner = ensureCookieBanner();
+  const modal = ensureCookieManageModal();
+  const settingsButton = ensureCookieSettingsButton();
+  const saved = readStoredCookiePreferences();
+  const hasConsent = Boolean(saved?.consentSet);
+
+  applyCookieUiVisibility(hasConsent);
+
+  if (saved?.consentSet && !saved.analytics) {
+    if (settingsButton) settingsButton.title = 'Analytics tracking is currently off';
+  } else {
+    if (settingsButton) settingsButton.title = '';
+  }
+
+  settingsButton?.addEventListener('click', event => {
+    event.preventDefault();
+    openCookiePreferences();
+  });
+
+  const acceptAllButton = banner.querySelector('#cookie-consent-accept-all');
+  const openManageButton = banner.querySelector('#cookie-consent-open-manage');
+  const analyticsInput = modal.querySelector('#cookie-manage-analytics');
+  const adsInput = modal.querySelector('#cookie-manage-ads');
+  const essentialOnlyButton = modal.querySelector('#cookie-manage-essential');
+  const saveButton = modal.querySelector('#cookie-manage-save');
+  const closeButton = modal.querySelector('#cookie-manage-close');
+
+  acceptAllButton?.addEventListener('click', () => {
+    saveCookiePreferences({ essential: true, analytics: true, ads: true });
+    if (settingsButton) settingsButton.title = '';
+    banner.hidden = true;
+  });
+
+  openManageButton?.addEventListener('click', openCookiePreferences);
+
+  essentialOnlyButton?.addEventListener('click', () => {
+    saveCookiePreferences({ essential: true, analytics: false, ads: false });
+    if (settingsButton) settingsButton.title = 'Analytics tracking is currently off';
+    banner.hidden = true;
+    closeCookiePreferences();
+  });
+
+  saveButton?.addEventListener('click', () => {
+    saveCookiePreferences({
+      essential: true,
+      analytics: Boolean(analyticsInput?.checked),
+      ads: Boolean(adsInput?.checked)
+    });
+    if (settingsButton) {
+      settingsButton.title = analyticsInput?.checked ? '' : 'Analytics tracking is currently off';
+    }
+    banner.hidden = true;
+    closeCookiePreferences();
+  });
+
+  closeButton?.addEventListener('click', closeCookiePreferences);
+  modal.addEventListener('click', event => {
+    if (event.target === modal) {
+      closeCookiePreferences();
+    }
+  });
+
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !modal.hidden) {
+      closeCookiePreferences();
+    }
+  });
+}
 
 function ensureDeleteConfirmModal() {
   let overlay = document.getElementById('app-delete-confirm-overlay');
@@ -133,16 +373,32 @@ const saved = localStorage.getItem('theme');
 setTheme(saved || 'light');
 
 let cachedProfile;
+let profileRequestPromise = null;
 
 async function getProfile() {
   if (cachedProfile !== undefined) return cachedProfile;
-  const res = await fetch('/api/auth/profile');
-  if (!res.ok) {
-    cachedProfile = null;
-    return null;
+
+  if (!profileRequestPromise) {
+    profileRequestPromise = fetch('/api/auth/profile')
+      .then(async (res) => {
+        if (!res.ok) {
+          cachedProfile = null;
+          return null;
+        }
+
+        cachedProfile = await res.json();
+        return cachedProfile;
+      })
+      .catch(() => {
+        cachedProfile = null;
+        return null;
+      })
+      .finally(() => {
+        profileRequestPromise = null;
+      });
   }
-  cachedProfile = await res.json();
-  return cachedProfile;
+
+  return profileRequestPromise;
 }
 
 async function updateAuthLinks() {
@@ -329,7 +585,19 @@ function updateReleaseCalendarTopOffset() {
     }
   }
 
-  document.documentElement.style.setProperty('--release-calendar-top', `${topOffset}px`);
+  const nextValue = `${topOffset}px`;
+  if (document.documentElement.style.getPropertyValue('--release-calendar-top') !== nextValue) {
+    document.documentElement.style.setProperty('--release-calendar-top', nextValue);
+  }
+}
+
+let releaseCalendarTopOffsetFrame = null;
+function scheduleReleaseCalendarTopOffsetUpdate() {
+  if (releaseCalendarTopOffsetFrame !== null) return;
+  releaseCalendarTopOffsetFrame = requestAnimationFrame(() => {
+    releaseCalendarTopOffsetFrame = null;
+    updateReleaseCalendarTopOffset();
+  });
 }
 
 function renderTodayEventsBanner(events) {
@@ -423,7 +691,7 @@ function renderTodayEventsBanner(events) {
     }
 
     banner.hidden = false;
-    updateReleaseCalendarTopOffset();
+    scheduleReleaseCalendarTopOffsetUpdate();
     return;
   }
 
@@ -457,7 +725,7 @@ function renderTodayEventsBanner(events) {
     }
 
     banner.hidden = false;
-    updateReleaseCalendarTopOffset();
+    scheduleReleaseCalendarTopOffsetUpdate();
     return;
   }
 
@@ -468,13 +736,14 @@ function renderTodayEventsBanner(events) {
   content.appendChild(intro);
 
   banner.hidden = false;
-  updateReleaseCalendarTopOffset();
+  scheduleReleaseCalendarTopOffsetUpdate();
 }
 
 async function initializeTodayEventsBanner() {
   const pathname = String(window.location.pathname || '/');
   const isHomePage = pathname === '/' || pathname === '/index.html';
-  if (!isHomePage) return;
+  const isAuthorPage = pathname === '/author.html';
+  if (!isHomePage && !isAuthorPage) return;
 
   const header = document.querySelector('body > header');
   if (!header) return;
@@ -485,11 +754,11 @@ async function initializeTodayEventsBanner() {
     const payload = await response.json();
     renderTodayEventsBanner(payload);
   } catch {
-    updateReleaseCalendarTopOffset();
+    scheduleReleaseCalendarTopOffsetUpdate();
   }
 
-  window.addEventListener('resize', updateReleaseCalendarTopOffset);
-  window.addEventListener('scroll', updateReleaseCalendarTopOffset, { passive: true });
+  window.addEventListener('resize', scheduleReleaseCalendarTopOffsetUpdate);
+  window.addEventListener('scroll', scheduleReleaseCalendarTopOffsetUpdate, { passive: true });
 }
 
 updateAuthLinks();
@@ -497,4 +766,5 @@ updateStaffLinks();
 updateGuestLinks();
 initializeMobileSidebar();
 initializeTodayEventsBanner();
-updateReleaseCalendarTopOffset();
+scheduleReleaseCalendarTopOffsetUpdate();
+initializeCookiePreferences();

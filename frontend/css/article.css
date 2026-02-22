@@ -1,5 +1,16 @@
 /* Article page styles */
 
+.article-reading-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 3px;
+  background: var(--accent);
+  z-index: 2500;
+  transition: width 0.08s linear;
+}
+
 .back-link {
   display: inline-flex;
   align-items: center;
@@ -32,6 +43,60 @@ article h1 {
   color: var(--text-muted);
   font-size: 0.95rem;
   flex-wrap: wrap;
+}
+
+.article-meta-author {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.article-meta-author:hover {
+  text-decoration: underline;
+}
+
+.article-reading-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 14px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.article-toc {
+  margin: 0 0 16px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+}
+
+.article-toc h3 {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  color: var(--text);
+}
+
+.article-toc-list {
+  margin: 0;
+  padding-left: 16px;
+  display: grid;
+  gap: 6px;
+}
+
+.article-toc-list a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 0.92rem;
+}
+
+.article-toc-list a:hover {
+  color: var(--accent);
 }
 
 .article-summary {

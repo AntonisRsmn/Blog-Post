@@ -8,6 +8,12 @@ const UserSchema = new mongoose.Schema(
     lastName: { type: String, default: "", trim: true },
     username: { type: String, default: "" },
     avatarUrl: { type: String, default: "" },
+    websiteUrl: { type: String, default: "" },
+    githubUrl: { type: String, default: "" },
+    linkedinUrl: { type: String, default: "" },
+    instagramUrl: { type: String, default: "" },
+    twitterUrl: { type: String, default: "" },
+    tiktokUrl: { type: String, default: "" },
     role: { type: String, default: "commenter" }
   },
   { timestamps: true }

@@ -9,6 +9,8 @@ This repository contains a full-stack blog platform with public content, user ac
 - Search and filter by category
 - Open full post pages with rich Editor.js content (text, images, embeds, quotes)
 - View release calendar events
+- View a rotating release/event strip below the navbar on the home page (today first, then upcoming)
+- View featured post rotator on home page (manual admin picks, up to 6)
 - Click **Generate Summary** on a post page to get an AI/fallback Greek summary in a visible summary box
 
 ### Logged-in users
@@ -23,11 +25,14 @@ This repository contains a full-stack blog platform with public content, user ac
 - Create/edit/delete posts (staff ownership rules apply for post edit/delete)
 - Upload images for content
 - Manage release calendar events
+- Manage featured posts from admin dashboard (admin only, max 6 with automatic rollover)
 - Manage categories:
   - create: admin + staff
   - delete: admin + staff
   - edit/rename: disabled
 - Manage staff access list (current backend permission allows both admin and staff)
+- Use a shared confirmation modal before destructive delete actions
+- See admin status messages auto-dismiss after 5 seconds
 
 ---
 
@@ -47,6 +52,8 @@ This repository contains a full-stack blog platform with public content, user ac
 - Post page summary button is one-time per post per browser (stored in `localStorage`).
 - Summary endpoint is rate-limited (`/api/posts/summarize`, 5 requests/hour per IP).
 - AI summaries are requested in Greek.
+- Posts without image use a default fallback image (`frontend/assets/default-post.svg`).
+- Unknown non-API routes return the custom frontend 404 page, while unknown API routes return JSON 404.
 
 ---
 
@@ -153,6 +160,12 @@ If no ads appear immediately, this is normal while account/site/ad-unit propagat
 
 ### Staff/Admin API
 - Posts: `POST/PUT/DELETE /api/posts/...`
+- Manage own/all posts list: `GET /api/posts/manage?list=1`
+- Manage post by id (admin/staff safe path): `GET /api/posts/manage/by-id/:id`
+- Featured management (admin only):
+  - `GET /api/posts/manage/featured`
+  - `POST /api/posts/manage/featured` (body: `postId`)
+  - `DELETE /api/posts/manage/featured/:id`
 - Categories: `POST /api/categories`, `DELETE /api/categories/:name`, `PUT /api/categories/:name` returns disabled (405)
 - Staff list: `/api/staff` routes
 - Upload: `POST /api/upload`

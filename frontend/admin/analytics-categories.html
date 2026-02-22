@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analytics - Categories</title>
+  <link rel="stylesheet" href="../css/global.css" />
+  <link rel="stylesheet" href="../css/admin.css" />
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <a href="/" class="logo">Rusman</a>
+    <button type="button" id="mobile-menu-toggle" class="mobile-menu-toggle" aria-label="Open menu" aria-controls="mobile-sidebar" aria-expanded="false">☰</button>
+    <nav>
+      <a href="/" class="nav-link">Home</a>
+      <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+      <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+      <a href="/admin/profile.html" class="nav-link" data-auth-link>Profile</a>
+      <button id="theme-toggle"></button>
+    </nav>
+  </div>
+</header>
+
+<div id="mobile-sidebar-backdrop" class="mobile-sidebar-backdrop" hidden></div>
+<aside id="mobile-sidebar" class="mobile-sidebar" aria-label="Mobile navigation" aria-hidden="true">
+  <div class="mobile-sidebar-head">
+    <strong>Menu</strong>
+    <button type="button" id="mobile-sidebar-close" class="mobile-sidebar-close" aria-label="Close menu">✕</button>
+  </div>
+  <nav class="mobile-sidebar-nav">
+    <a href="/" class="nav-link">Home</a>
+    <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+    <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+    <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
+    <div class="mobile-theme-row">
+      <span>Theme</span>
+      <button type="button" id="mobile-theme-toggle" class="mobile-theme-switch" aria-label="Toggle theme"></button>
+    </div>
+  </nav>
+</aside>
+
+<main>
+  <div class="admin-container">
+    <div class="admin-page-head">
+      <h1 class="admin-title">All Ranked Categories</h1>
+      <p class="admin-subtitle">Search full categories ranking. Rank numbers stay fixed to original order.</p>
+    </div>
+
+    <div id="status" class="admin-status" role="status" aria-live="polite"></div>
+
+    <div class="admin-section">
+      <div class="latest-posts-head">
+        <div class="latest-posts-head-copy">
+          <h2>Categories Ranking</h2>
+          <p class="release-manager-hint"><a href="/admin/analytics.html">← Back to analytics dashboard</a></p>
+        </div>
+      </div>
+
+      <div class="posts-search-wrap">
+        <input id="analytics-categories-search" type="text" placeholder="Search categories..." />
+      </div>
+
+      <ul id="analytics-categories-list" class="posts-list analytics-list"></ul>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div class="footer-left">
+      <div class="brand-small">Antonios <span style="color:var(--accent)">Rusman</span></div>
+      <div class="muted small">© <span id="year"></span> <a href="https://rusman.gr" target="_blank" rel="noopener">Antonios Rusman</a> — All rights reserved.</div>
+    </div>
+    <div class="footer-center">
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <a href="/tos.html">Terms of Service</a>
+        <a href="/privacy.html">Privacy Policy</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+
+<script src="../js/theme.js"></script>
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+const listEl = document.getElementById("analytics-categories-list");
+const searchEl = document.getElementById("analytics-categories-search");
+let allItems = [];
+
+function showStatus(message, type = "") {
+  const statusEl = document.getElementById("status");
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.classList.remove("success", "error", "deleted", "show");
+  if (type) statusEl.classList.add(type);
+  statusEl.classList.add("show");
+}
+
+function normalizeSearch(value) {
+  return String(value || "").toLowerCase().trim();
+}
+
+function renderRankLabel(rank) {
+  const value = Number(rank || 0);
+  if (!Number.isFinite(value) || value < 1) return "-";
+  return `${value}.`;
+}
+
+function renderList() {
+  if (!listEl) return;
+  const query = normalizeSearch(searchEl?.value);
+
+  const filtered = !query
+    ? allItems
+    : allItems.filter(item => normalizeSearch(item?.name).includes(query));
+
+  listEl.innerHTML = "";
+
+  if (!filtered.length) {
+    listEl.innerHTML = '<li class="post-item"><span class="release-event-date">No data found.</span></li>';
+    return;
+  }
+
+  filtered.forEach(item => {
+    const li = document.createElement("li");
+    li.className = "post-item";
+
+    const rank = document.createElement("span");
+    rank.className = "analytics-rank";
+    rank.textContent = renderRankLabel(item?.rank);
+
+    const title = document.createElement("span");
+    title.className = "post-item-title analytics-item-title";
+    title.textContent = item?.name || "UNCATEGORIZED";
+
+    const meta = document.createElement("span");
+    meta.className = "release-event-date analytics-item-meta";
+    meta.textContent = `${Number(item?.views || 0).toLocaleString()} views`;
+
+    li.appendChild(rank);
+    li.appendChild(title);
+    li.appendChild(meta);
+    listEl.appendChild(li);
+  });
+}
+
+async function initializePage() {
+  try {
+    const response = await fetch("/api/posts/manage/analytics/categories");
+    if (!response.ok) {
+      showStatus("Could not load ranked categories.", "error");
+      return;
+    }
+
+    const payload = await response.json().catch(() => ({}));
+    allItems = Array.isArray(payload?.items) ? payload.items : [];
+    renderList();
+    showStatus(`Loaded ${allItems.length} ranked categories.`, "success");
+
+    setTimeout(() => {
+      const statusEl = document.getElementById("status");
+      if (!statusEl) return;
+      statusEl.classList.remove("show", "success", "error", "deleted");
+      statusEl.textContent = "";
+    }, 3000);
+  } catch {
+    showStatus("Could not reach the server.", "error");
+  }
+}
+
+searchEl?.addEventListener("input", renderList);
+initializePage();
+</script>
+
+</body>
+</html>

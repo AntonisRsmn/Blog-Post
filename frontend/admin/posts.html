@@ -22,6 +22,7 @@
     <nav>
       <a href="/" class="nav-link">Home</a>
       <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+      <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
       <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
       <a href="/admin/profile.html" class="nav-link" data-auth-link>Profile</a>
       <button id="theme-toggle"></button>
@@ -38,6 +39,7 @@
   <nav class="mobile-sidebar-nav">
     <a href="/" class="nav-link">Home</a>
     <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+    <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
     <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
     <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
     <div class="mobile-theme-row">
@@ -108,7 +110,8 @@
         </div>
 
         <div class="form-group">
-          <textarea id="post-edit-summary" rows="3" maxlength="220" hidden></textarea>
+          <label for="post-edit-summary">SEO Meta Description</label>
+          <textarea id="post-edit-summary" rows="3" maxlength="220" placeholder="Short search/snippet description (max 220 characters)"></textarea>
         </div>
 
         <div class="post-edit-actions">
@@ -190,6 +193,7 @@ const editCategoriesInput = document.getElementById("post-edit-categories");
 const editIdInput = document.getElementById("post-edit-id");
 const editSummaryInput = document.getElementById("post-edit-summary");
 let statusHideTimer = null;
+const DEFAULT_POST_IMAGE = "/assets/default-post.svg";
 
 function showStatus(message, type) {
   if (!statusEl) return;
@@ -372,8 +376,10 @@ function getPostImageUrl(post) {
   if (post?.thumbnailUrl) return post.thumbnailUrl;
   if (!Array.isArray(post?.content)) return "";
   const imageBlock = post.content.find(block => block?.type === "image");
-  if (!imageBlock) return "";
-  return imageBlock?.data?.file?.url || imageBlock?.data?.url || imageBlock?.data?.file || "";
+  const resolved = imageBlock
+    ? (imageBlock?.data?.file?.url || imageBlock?.data?.url || imageBlock?.data?.file || "")
+    : "";
+  return resolved || DEFAULT_POST_IMAGE;
 }
 
 function renderPostsList() {
@@ -464,7 +470,7 @@ async function editPostById(postId) {
   editSlugInput.value = post.slug || "";
   editCategoriesInput.value = Array.isArray(post.categories) ? post.categories.join(", ") : "";
   if (editSummaryInput) {
-    editSummaryInput.value = String(post.excerpt || "").trim() || generateSummaryFromBlocks(post.content || []);
+    editSummaryInput.value = String(post.metaDescription || post.excerpt || "").trim() || generateSummaryFromBlocks(post.content || []);
   }
   isSlugManuallyEdited = false;
   if (editModalTitle) editModalTitle.textContent = "Edit Post";
@@ -553,6 +559,7 @@ editForm?.addEventListener("submit", async event => {
     slug,
     categories,
     excerpt: String(editSummaryInput?.value || "").trim() || generateSummaryFromBlocks(blocks.blocks),
+    metaDescription: String(editSummaryInput?.value || "").trim() || generateSummaryFromBlocks(blocks.blocks),
     content: blocks.blocks,
     published: true
   };

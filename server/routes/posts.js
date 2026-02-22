@@ -24,6 +24,10 @@ function sanitizeText(value, maxLength = 300) {
     .slice(0, maxLength);
 }
 
+function escapeRegex(value) {
+  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function normalizeSlug(value) {
   return sanitizeText(value, 180)
     .toLowerCase()
@@ -79,6 +83,8 @@ function toListPostPayload(post) {
     categories: normalizeCategories(Array.isArray(plain?.categories) ? plain.categories : []),
     slug: plain?.slug || "",
     excerpt: plain?.excerpt || "",
+    metaDescription: plain?.metaDescription || "",
+    viewCount: Number(plain?.viewCount || 0),
     createdAt: plain?.createdAt || null,
     releaseDate: plain?.releaseDate || null,
     releaseType: plain?.releaseType || "",
@@ -125,6 +131,12 @@ function buildValidatedPostPayload(input, isPartial = false) {
     payload.excerpt = sanitizeText(input.excerpt, 400);
   } else if (!isPartial) {
     payload.excerpt = "";
+  }
+
+  if (typeof input.metaDescription === "string") {
+    payload.metaDescription = sanitizeText(input.metaDescription, 220);
+  } else if (!isPartial) {
+    payload.metaDescription = "";
   }
 
   if (typeof input.published === "boolean") {
@@ -211,6 +223,77 @@ function extractPostPlainText(post) {
     .join(" ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function getAnalyticsBaseQuery(user) {
+  return user.role === "admin"
+    ? { published: true }
+    : {
+        published: true,
+        $or: [
+          { authorId: user._id },
+          { author: user.username || user.email }
+        ]
+      };
+}
+
+function buildAnalyticsPayload(posts) {
+  const orderedPosts = Array.isArray(posts) ? posts : [];
+
+  const totals = {
+    posts: orderedPosts.length,
+    views: orderedPosts.reduce((sum, post) => sum + Number(post?.viewCount || 0), 0)
+  };
+
+  const rankedPosts = orderedPosts.map((post, index) => ({
+    rank: index + 1,
+    _id: post._id,
+    title: post.title || "Untitled",
+    slug: post.slug || "",
+    views: Number(post.viewCount || 0)
+  }));
+
+  const categoryMap = new Map();
+  const authorMap = new Map();
+
+  orderedPosts.forEach(post => {
+    const views = Number(post?.viewCount || 0);
+    const categories = Array.isArray(post?.categories) && post.categories.length
+      ? post.categories
+      : ["UNCATEGORIZED"];
+
+    categories.forEach(category => {
+      const key = sanitizeText(category, 50).toUpperCase() || "UNCATEGORIZED";
+      categoryMap.set(key, (categoryMap.get(key) || 0) + views);
+    });
+
+    const author = sanitizeText(post?.author, 80) || "Unknown";
+    authorMap.set(author, (authorMap.get(author) || 0) + views);
+  });
+
+  const rankedCategories = [...categoryMap.entries()]
+    .sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      return String(a[0]).localeCompare(String(b[0]));
+    })
+    .map(([name, views], index) => ({ rank: index + 1, name, views }));
+
+  const rankedAuthors = [...authorMap.entries()]
+    .sort((a, b) => {
+      if (b[1] !== a[1]) return b[1] - a[1];
+      return String(a[0]).localeCompare(String(b[0]));
+    })
+    .map(([name, views], index) => ({ rank: index + 1, name, views }));
+
+  return {
+    totals,
+    rankedPosts,
+    rankedCategories,
+    rankedAuthors,
+    topPosts: rankedPosts.slice(0, 10),
+    topCategories: rankedCategories.slice(0, 10),
+    topAuthors: rankedAuthors.slice(0, 10)
+  };
 }
 
 function buildFallbackSummary(post) {
@@ -329,8 +412,8 @@ async function generateAiSummary(post) {
 router.get("/", async (req, res) => {
   const listMode = String(req.query?.list || "") === "1";
   const selectFields = listMode
-    ? "title author authorId categories slug excerpt createdAt releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl content"
-    : "title author authorId categories slug excerpt createdAt content releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl";
+    ? "title author authorId categories slug excerpt metaDescription createdAt releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl content"
+    : "title author authorId categories slug excerpt metaDescription createdAt content releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl";
 
   const posts = await Post.find({ published: true })
     .select(selectFields)
@@ -362,8 +445,8 @@ router.get("/", async (req, res) => {
 router.get("/manage", auth, requireUploaderOrStaff, async (req, res) => {
   const listMode = String(req.query?.list || "") === "1";
   const selectFields = listMode
-    ? "title author authorId categories slug excerpt createdAt releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl content"
-    : "title author authorId categories slug excerpt createdAt content releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl";
+    ? "title author authorId categories slug excerpt metaDescription createdAt releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl content"
+    : "title author authorId categories slug excerpt metaDescription createdAt content releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl";
 
   const user = await getCurrentUser(req);
   if (!user) return res.status(404).json({ error: "User not found" });
@@ -429,6 +512,54 @@ router.get("/by-id/:id", async (req, res) => {
   return res.json(normalizePostCategoriesForOutput(post.toObject()));
 });
 
+router.get("/by-author", async (req, res) => {
+  const author = sanitizeText(req.query?.author, 120);
+  if (!author) return res.status(400).json({ error: "Author is required" });
+
+  const pattern = new RegExp(`^${escapeRegex(author)}$`, "i");
+  const posts = await Post.find({ published: true, author: pattern })
+    .select("title author authorId categories slug excerpt metaDescription createdAt content releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl viewCount")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  return res.json(posts.map(toListPostPayload));
+});
+
+router.post("/track-view", async (req, res) => {
+  const rawId = String(req.body?.id || "").trim();
+  const rawSlug = sanitizeText(req.body?.slug, 180);
+  const now = new Date();
+
+  let query = null;
+  if (rawId && mongoose.Types.ObjectId.isValid(rawId)) {
+    query = { _id: rawId, published: true };
+  } else if (rawSlug) {
+    query = { slug: rawSlug, published: true };
+  }
+
+  if (!query) return res.status(400).json({ error: "Post id or slug is required" });
+
+  const updated = await Post.findOneAndUpdate(
+    query,
+    { $inc: { viewCount: 1 }, $set: { lastViewedAt: now } },
+    { new: true }
+  ).select("_id viewCount");
+
+  if (!updated && rawSlug) {
+    const fallback = await Post.findOneAndUpdate(
+      { slug: rawSlug.toLowerCase(), published: true },
+      { $inc: { viewCount: 1 }, $set: { lastViewedAt: now } },
+      { new: true }
+    ).select("_id viewCount");
+
+    if (!fallback) return res.status(404).json({ error: "Post not found" });
+    return res.json({ success: true, viewCount: Number(fallback.viewCount || 0) });
+  }
+
+  if (!updated) return res.status(404).json({ error: "Post not found" });
+  return res.json({ success: true, viewCount: Number(updated.viewCount || 0) });
+});
+
 router.post("/summarize", summarizeLimiter, async (req, res) => {
   const rawId = String(req.body?.id || "").trim();
   const rawSlug = sanitizeText(req.body?.slug, 180);
@@ -480,7 +611,7 @@ router.get("/manage/featured", auth, requireUploaderOrStaff, async (req, res) =>
   }
 
   const featuredPosts = await Post.find({ featuredManual: true })
-    .select("title author authorId categories slug excerpt createdAt releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl content")
+    .select("title author authorId categories slug excerpt metaDescription createdAt releaseDate releaseType includeInCalendar featuredManual featuredAddedAt thumbnailUrl content")
     .sort({ featuredAddedAt: -1, createdAt: -1 })
     .limit(FEATURED_POST_LIMIT)
     .lean();
@@ -557,6 +688,65 @@ router.delete("/manage/featured/:id", auth, requireUploaderOrStaff, async (req, 
 
   if (!updated) return res.status(404).json({ error: "Post not found" });
   return res.json({ success: true });
+});
+
+router.get("/manage/analytics", auth, requireUploaderOrStaff, async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const baseQuery = getAnalyticsBaseQuery(user);
+
+  const posts = await Post.find(baseQuery)
+    .select("title slug author categories createdAt viewCount")
+    .sort({ viewCount: -1, createdAt: -1 })
+    .lean();
+
+  const analytics = buildAnalyticsPayload(posts);
+  return res.json({
+    totals: analytics.totals,
+    topPosts: analytics.topPosts,
+    topCategories: analytics.topCategories,
+    topAuthors: analytics.topAuthors
+  });
+});
+
+router.get("/manage/analytics/posts", auth, requireUploaderOrStaff, async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const posts = await Post.find(getAnalyticsBaseQuery(user))
+    .select("title slug author categories createdAt viewCount")
+    .sort({ viewCount: -1, createdAt: -1 })
+    .lean();
+
+  const analytics = buildAnalyticsPayload(posts);
+  return res.json({ totals: analytics.totals, items: analytics.rankedPosts });
+});
+
+router.get("/manage/analytics/categories", auth, requireUploaderOrStaff, async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const posts = await Post.find(getAnalyticsBaseQuery(user))
+    .select("title slug author categories createdAt viewCount")
+    .sort({ viewCount: -1, createdAt: -1 })
+    .lean();
+
+  const analytics = buildAnalyticsPayload(posts);
+  return res.json({ totals: analytics.totals, items: analytics.rankedCategories });
+});
+
+router.get("/manage/analytics/authors", auth, requireUploaderOrStaff, async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const posts = await Post.find(getAnalyticsBaseQuery(user))
+    .select("title slug author categories createdAt viewCount")
+    .sort({ viewCount: -1, createdAt: -1 })
+    .lean();
+
+  const analytics = buildAnalyticsPayload(posts);
+  return res.json({ totals: analytics.totals, items: analytics.rankedAuthors });
 });
 
 // Get single post by slug

@@ -9,6 +9,8 @@
 - Αναζήτηση και φίλτρα κατηγοριών
 - Ανάγνωση πλήρους άρθρου (Editor.js περιεχόμενο: κείμενο, εικόνες, embeds, quotes)
 - Προβολή release calendar
+- Προβολή μπάρας release/event κάτω από το navbar στην αρχική (πρώτα σημερινά, μετά upcoming)
+- Προβολή featured posts rotator στην αρχική (χειροκίνητη επιλογή admin, έως 6)
 - Κλικ στο **Generate Summary** στη σελίδα άρθρου για δημιουργία ελληνικής σύνοψης μέσα σε εμφανές box
 
 ### Συνδεδεμένοι χρήστες
@@ -23,11 +25,14 @@
 - Δημιουργία/επεξεργασία/διαγραφή άρθρων (ισχύουν ownership rules για staff σε edit/delete)
 - Upload εικόνων για περιεχόμενο
 - Διαχείριση release calendar events
+- Διαχείριση featured posts από το admin dashboard (μόνο admin, έως 6 με αυτόματο rollover)
 - Διαχείριση κατηγοριών:
   - δημιουργία: admin + staff
   - διαγραφή: admin + staff
   - επεξεργασία/μετονομασία: απενεργοποιημένη
 - Διαχείριση λίστας staff access (με τα τρέχοντα permissions επιτρέπεται σε admin και staff)
+- Κοινό confirmation modal πριν από destructive διαγραφές
+- Τα admin status μηνύματα κρύβονται αυτόματα σε 5 δευτερόλεπτα
 
 ---
 
@@ -47,6 +52,8 @@
 - Το κουμπί σύνοψης στη σελίδα άρθρου είναι one-time ανά post ανά browser (`localStorage`).
 - Το endpoint σύνοψης έχει rate limit (`/api/posts/summarize`, 5 αιτήματα/ώρα ανά IP).
 - Οι AI περιλήψεις ζητούνται στα Ελληνικά.
+- Posts χωρίς εικόνα χρησιμοποιούν default fallback image (`frontend/assets/default-post.svg`).
+- Άγνωστα non-API routes οδηγούν στην custom frontend 404 σελίδα, ενώ άγνωστα API routes επιστρέφουν JSON 404.
 
 ---
 
@@ -105,6 +112,12 @@
 
 ### Staff/Admin API
 - Posts: `POST/PUT/DELETE /api/posts/...`
+- Manage list για admin/staff: `GET /api/posts/manage?list=1`
+- Manage by id (ασφαλές path): `GET /api/posts/manage/by-id/:id`
+- Featured management (μόνο admin):
+  - `GET /api/posts/manage/featured`
+  - `POST /api/posts/manage/featured` (body: `postId`)
+  - `DELETE /api/posts/manage/featured/:id`
 - Categories: `POST /api/categories`, `DELETE /api/categories/:name`, `PUT /api/categories/:name` επιστρέφει disabled (405)
 - Staff list: routes στο `/api/staff`
 - Upload: `POST /api/upload`

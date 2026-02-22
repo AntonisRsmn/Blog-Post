@@ -14,6 +14,11 @@ const categoryPaginationModes = new Map();
 let homeRenderVersion = 0;
 let featuredRotationTimer = null;
 const FEATURED_ROTATION_MS = 5000;
+const DEFAULT_POST_IMAGE = "/assets/default-post.svg";
+const DEFAULT_AUTHOR_AVATAR = "/assets/default-avatar.svg";
+let authorPageName = "";
+let authorPageTotalCount = 0;
+let authorPageRenderCallback = null;
 
 function normalizeCategoryLabel(value) {
   return String(value || "").replace(/\s+/g, " ").trim().toUpperCase();
@@ -28,6 +33,114 @@ function escapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+function toHeadingId(value, fallback = "section") {
+  const base = String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N}\s-]/gu, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+  return base || fallback;
+}
+
+function estimateReadingMinutesFromHtml(html) {
+  const plain = String(html || "")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const words = plain ? plain.split(" ").filter(Boolean).length : 0;
+  if (!words) return 1;
+  return Math.max(1, Math.ceil(words / 220));
+}
+
+function initializeReadingProgress() {
+  const progress = document.getElementById("article-reading-progress");
+  const article = document.getElementById("post");
+  if (!progress || !article) return;
+
+  const update = () => {
+    const rect = article.getBoundingClientRect();
+    const viewport = Math.max(window.innerHeight, 1);
+    const total = Math.max(rect.height - viewport * 0.45, 1);
+    const consumed = Math.min(Math.max(-rect.top + viewport * 0.2, 0), total);
+    const ratio = consumed / total;
+    progress.style.width = `${Math.round(ratio * 100)}%`;
+  };
+
+  window.addEventListener("scroll", update, { passive: true });
+  window.addEventListener("resize", update);
+  update();
+}
+
+function renderArticleToc(rootElement) {
+  const tocRoot = rootElement?.querySelector("#article-toc");
+  const tocList = rootElement?.querySelector("#article-toc-list");
+  if (!tocRoot || !tocList) return;
+
+  const headings = Array.from(rootElement.querySelectorAll(".article-content h2, .article-content h3"));
+  tocList.innerHTML = "";
+
+  if (!headings.length) {
+    tocRoot.hidden = true;
+    return;
+  }
+
+  const used = new Set();
+  headings.forEach((heading, index) => {
+    const text = String(heading.textContent || "").trim();
+    if (!text) return;
+
+    let id = toHeadingId(text, `section-${index + 1}`);
+    while (used.has(id)) {
+      id = `${id}-${index + 1}`;
+    }
+    used.add(id);
+    heading.id = id;
+
+    const li = document.createElement("li");
+    if (heading.tagName.toLowerCase() === "h3") {
+      li.style.marginLeft = "12px";
+    }
+
+    const anchor = document.createElement("a");
+    anchor.href = `#${id}`;
+    anchor.textContent = text;
+    li.appendChild(anchor);
+    tocList.appendChild(li);
+  });
+
+  tocRoot.hidden = tocList.children.length === 0;
+}
+
+async function trackPostView(post) {
+  const id = String(post?._id || "").trim();
+  const slug = String(post?.slug || "").trim();
+  if (!id && !slug) return;
+
+  const preferences = typeof window.getCookiePreferences === "function"
+    ? window.getCookiePreferences()
+    : null;
+  if (preferences && !preferences.analytics) return;
+
+  const sessionKey = `tracked-post-view:${id || slug}`;
+  try {
+    if (sessionStorage.getItem(sessionKey) === "1") return;
+  } catch {
+  }
+
+  try {
+    await fetch("/api/posts/track-view", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, slug })
+    });
+    sessionStorage.setItem(sessionKey, "1");
+  } catch {
+  }
+}
+
 function getDisplayExcerpt(post, maxLength = 170) {
   const primary = post?.excerpt || post?.summary || "";
   const secondary = post?.content || "";
@@ -40,6 +153,9 @@ function getDisplayExcerpt(post, maxLength = 170) {
     .replace(/\[([^\]]+)\]\((?:https?:\/\/|\/)[^)]+\)/g, "$1")
     .replace(/https?:\/\/[^\s<]+/gi, " ")
     .replace(/\b(?:image|images|paragraph)\b/gi, " ")
+    .replace(/^(?:\s*[A-Za-z0-9_-]{8,}\s+){1,4}/u, "")
+    .replace(/\b(?=[A-Za-z0-9_-]{8,}\b)(?=.*[_\d])[A-Za-z0-9_-]+\b/gu, " ")
+    .replace(/\b[A-Za-z0-9]{16,}\b/g, " ")
     .replace(/\b[a-z0-9]{8,}\b(?=\s+[\p{L}\p{N}])/giu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -49,6 +165,7 @@ function getDisplayExcerpt(post, maxLength = 170) {
     .map(part => part.trim())
     .filter(Boolean)
     .filter(part => !/^[a-z0-9]{8,}$/i.test(part))
+    .filter(part => !/^(?:[A-Za-z0-9_-]{8,}\s+){1,3}[\p{L}]{2,}/u.test(part))
     .filter(part => /[\p{L}\p{N}]{3,}/u.test(part));
 
   if (parts.length) {
@@ -63,13 +180,114 @@ function getDisplayExcerpt(post, maxLength = 170) {
 }
 
 function toSafeHttpUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+
+  const hasScheme = /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(raw);
+  const isRelativePath = raw.startsWith("/") || raw.startsWith("./") || raw.startsWith("../");
+  if (!hasScheme && !isRelativePath) return "";
+
   try {
-    const parsed = new URL(String(value || ""), window.location.origin);
+    const parsed = new URL(raw, window.location.origin);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
     return parsed.href;
   } catch {
     return "";
   }
+}
+
+function upsertMetaTag(attributeName, attributeValue, content) {
+  const safeContent = String(content || "").trim();
+  if (!attributeName || !attributeValue) return;
+  if (!safeContent) return;
+
+  let tag = document.head.querySelector(`meta[${attributeName}="${attributeValue}"]`);
+  if (!tag) {
+    tag = document.createElement("meta");
+    tag.setAttribute(attributeName, attributeValue);
+    document.head.appendChild(tag);
+  }
+
+  tag.setAttribute("content", safeContent);
+}
+
+function upsertCanonicalLink(href) {
+  const safeHref = toSafeHttpUrl(href);
+  if (!safeHref) return;
+
+  let canonical = document.head.querySelector("link[rel='canonical']");
+  if (!canonical) {
+    canonical = document.createElement("link");
+    canonical.setAttribute("rel", "canonical");
+    document.head.appendChild(canonical);
+  }
+
+  canonical.setAttribute("href", safeHref);
+}
+
+function updateArticleStructuredData(payload) {
+  if (!payload) return;
+
+  const scriptId = "article-structured-data";
+  let scriptTag = document.getElementById(scriptId);
+  if (!scriptTag) {
+    scriptTag = document.createElement("script");
+    scriptTag.id = scriptId;
+    scriptTag.type = "application/ld+json";
+    document.head.appendChild(scriptTag);
+  }
+
+  scriptTag.textContent = JSON.stringify(payload);
+}
+
+function applyPostSeo(post, options = {}) {
+  const title = String(post?.title || "Untitled").trim();
+  const author = String(post?.author || "").trim();
+  const articleUrl = String(options?.url || "").trim();
+  const imageUrl = String(options?.imageUrl || "").trim();
+
+  const preferredDescription = String(post?.metaDescription || post?.excerpt || "").trim();
+  const generatedDescription = String(options?.fallbackDescription || "").trim();
+  const description = (preferredDescription || generatedDescription || "Read the latest article on Rusman Blog.")
+    .replace(/\s+/g, " ")
+    .slice(0, 220)
+    .trim();
+
+  const docTitle = title ? `${title} | Rusman` : "Post | Rusman";
+  document.title = docTitle;
+
+  upsertMetaTag("name", "description", description);
+  upsertMetaTag("property", "og:type", "article");
+  upsertMetaTag("property", "og:site_name", "Rusman");
+  upsertMetaTag("property", "og:title", docTitle);
+  upsertMetaTag("property", "og:description", description);
+  upsertMetaTag("property", "og:url", articleUrl);
+  upsertMetaTag("property", "og:image", imageUrl);
+  upsertMetaTag("name", "twitter:card", "summary_large_image");
+  upsertMetaTag("name", "twitter:title", docTitle);
+  upsertMetaTag("name", "twitter:description", description);
+  upsertMetaTag("name", "twitter:image", imageUrl);
+  upsertCanonicalLink(articleUrl);
+
+  const datePublished = post?.createdAt ? new Date(post.createdAt).toISOString() : undefined;
+  const dateModifiedSource = post?.updatedAt || post?.createdAt;
+  const dateModified = dateModifiedSource ? new Date(dateModifiedSource).toISOString() : undefined;
+
+  updateArticleStructuredData({
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: title,
+    description,
+    image: imageUrl ? [imageUrl] : undefined,
+    author: author ? { "@type": "Person", name: author } : undefined,
+    publisher: {
+      "@type": "Organization",
+      name: "Rusman"
+    },
+    datePublished,
+    dateModified,
+    mainEntityOfPage: articleUrl
+  });
 }
 
 function isTwitterStatusUrl(value) {
@@ -233,6 +451,232 @@ async function loadPosts() {
   renderHomeSections();
 }
 
+async function loadAuthorPage() {
+  const authorRoot = document.getElementById("author-page");
+  const header = document.getElementById("author-header");
+  const container = document.getElementById("author-posts");
+  const heroName = document.getElementById("author-hero-name");
+  const heroSubtitle = document.getElementById("author-hero-subtitle");
+  const heroAvatar = document.getElementById("author-hero-avatar");
+  const heroLinks = document.getElementById("author-hero-links");
+  if (!authorRoot || !header || !container) return;
+
+  const params = new URLSearchParams(window.location.search);
+  const author = String(params.get("author") || "").trim();
+
+  if (!author) {
+    header.innerHTML = "<h2>Author</h2><p>No author selected.</p>";
+    container.innerHTML = '<div style="color: var(--text-muted);">Choose an author from an article page.</div>';
+    if (heroName) heroName.textContent = "Author";
+    if (heroSubtitle) heroSubtitle.textContent = "No author selected.";
+    if (heroAvatar) heroAvatar.src = DEFAULT_AUTHOR_AVATAR;
+    if (heroLinks) {
+      heroLinks.innerHTML = "";
+      heroLinks.hidden = true;
+    }
+    authorPageRenderCallback = null;
+    return;
+  }
+
+  const renderAuthorHero = (profile) => {
+    const displayName = String(profile?.name || author).trim() || author;
+    if (heroName) heroName.textContent = displayName;
+    if (heroSubtitle) heroSubtitle.textContent = `Posts by ${displayName}`;
+
+    const avatar = toSafeHttpUrl(profile?.avatarUrl || "") || DEFAULT_AUTHOR_AVATAR;
+    if (heroAvatar) {
+      heroAvatar.src = avatar;
+      heroAvatar.alt = `${displayName} avatar`;
+      heroAvatar.onerror = () => {
+        heroAvatar.src = DEFAULT_AUTHOR_AVATAR;
+      };
+    }
+
+    if (heroLinks) {
+      heroLinks.innerHTML = "";
+      heroLinks.hidden = true;
+      const links = profile?.links || {};
+      const candidates = [
+        { key: "website", label: "Website" },
+        { key: "github", label: "GitHub" },
+        { key: "linkedin", label: "LinkedIn" },
+        { key: "instagram", label: "Instagram" },
+        { key: "twitter", label: "Twitter/X" },
+        { key: "tiktok", label: "TikTok" }
+      ];
+
+      candidates.forEach(item => {
+        const url = toSafeHttpUrl(links?.[item.key] || "");
+        if (!url) return;
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.target = "_blank";
+        anchor.rel = "noopener noreferrer";
+        anchor.textContent = item.label;
+        heroLinks.appendChild(anchor);
+      });
+
+      heroLinks.hidden = heroLinks.childElementCount === 0;
+    }
+  };
+
+  const renderAuthorSections = () => {
+    if (!header || !container) return;
+
+    const categories = getAllCategories(allPosts);
+    const filteredPosts = getPostsWithActiveFilters(allPosts);
+    const hasActiveCategoryFilter = selectedCategoryFilters.size > 0;
+    const latestSorted = getSortedPosts(filteredPosts);
+    const totalCount = Number(authorPageTotalCount || allPosts.length || 0);
+    const articleLabel = totalCount === 1 ? "article" : "articles";
+
+    header.innerHTML = `<h2>Posts by ${escapeHtml(authorPageName || author || "Author")}</h2><p>${latestSorted.length} of ${totalCount} ${articleLabel}</p>`;
+    container.className = "home-sections";
+    container.innerHTML = "";
+
+    if (!latestSorted.length) {
+      container.innerHTML = '<div style="color: var(--text-muted);">No posts match selected filters.</div>';
+      return;
+    }
+
+    const latestSection = document.createElement("section");
+    latestSection.className = "home-section latest-section";
+
+    const latestHead = document.createElement("div");
+    latestHead.className = "home-section-head";
+    if (hasActiveCategoryFilter) {
+      const selectedNames = [...selectedCategoryFilters];
+      if (selectedNames.length === 1) {
+        latestHead.innerHTML = `<h2>${selectedNames[0]}</h2><p>Latest posts in ${selectedNames[0]}</p>`;
+      } else {
+        latestHead.innerHTML = "<h2>Filtered Posts</h2><p>Latest posts in selected categories</p>";
+      }
+    } else {
+      latestHead.innerHTML = "<h2>Latest Posts</h2><p>Latest 7 posts</p>";
+    }
+
+    latestVisibleCount = Math.min(Math.max(latestVisibleCount, HOME_BASE_VISIBLE_COUNT), latestSorted.length);
+    const latestGrid = document.createElement("div");
+    latestGrid.className = "home-grid";
+    latestSorted.slice(0, latestVisibleCount).forEach(post => {
+      latestGrid.appendChild(createPostCard(post));
+    });
+
+    latestSection.appendChild(latestHead);
+    latestSection.appendChild(latestGrid);
+
+    const latestControls = createLatestPaginationControls(latestSorted.length, renderAuthorSections);
+    if (latestControls) {
+      latestSection.appendChild(latestControls);
+    }
+
+    container.appendChild(latestSection);
+
+    if (hasActiveCategoryFilter) {
+      return;
+    }
+
+    const categoriesToRender = selectedCategoryFilters.size
+      ? categories.filter(category => selectedCategoryFilters.has(category))
+      : categories;
+
+    categoriesToRender.forEach(category => {
+      const postsInCategoryAll = getSortedPosts(
+        allPosts.filter(post => Array.isArray(post.categories) && post.categories.includes(category))
+      );
+
+      const isSelectedCategory = selectedCategoryFilters.has(category);
+      const visibleCount = isSelectedCategory
+        ? postsInCategoryAll.length
+        : ensureCategoryVisibleCount(category);
+      const currentVisibleCount = Math.min(Math.max(visibleCount, HOME_BASE_VISIBLE_COUNT), postsInCategoryAll.length);
+      const postsInCategory = postsInCategoryAll.slice(0, currentVisibleCount);
+
+      if (!isSelectedCategory && !categoryPaginationModes.has(category)) {
+        categoryPaginationModes.set(category, "expand");
+      }
+
+      if (!postsInCategory.length) return;
+
+      const section = document.createElement("section");
+      section.className = "home-section category-section";
+
+      const head = document.createElement("div");
+      head.className = "home-section-head";
+      head.innerHTML = `<h2>${category}</h2><p>Latest 7 posts in ${category}</p>`;
+
+      const grid = document.createElement("div");
+      grid.className = "home-grid";
+      postsInCategory.forEach(post => {
+        grid.appendChild(createPostCard(post));
+      });
+
+      section.appendChild(head);
+      section.appendChild(grid);
+
+      if (!isSelectedCategory && postsInCategoryAll.length > HOME_BASE_VISIBLE_COUNT) {
+        const mode = categoryPaginationModes.get(category) === "collapse" && currentVisibleCount > HOME_BASE_VISIBLE_COUNT
+          ? "collapse"
+          : "expand";
+
+        section.appendChild(createPaginationToggleButton(
+          mode === "collapse" ? "Show less" : "Show more",
+          () => {
+            if (mode === "collapse") {
+              const nextCount = Math.max(HOME_BASE_VISIBLE_COUNT, currentVisibleCount - HOME_TOGGLE_STEP);
+              categoryVisibleCounts.set(category, nextCount);
+              categoryPaginationModes.set(category, nextCount > HOME_BASE_VISIBLE_COUNT ? "collapse" : "expand");
+            } else {
+              const nextCount = Math.min(postsInCategoryAll.length, currentVisibleCount + HOME_TOGGLE_STEP);
+              categoryVisibleCounts.set(category, nextCount);
+              categoryPaginationModes.set(category, nextCount >= postsInCategoryAll.length ? "collapse" : "expand");
+            }
+
+            renderAuthorSections();
+          },
+          mode === "collapse" ? "show-less-btn" : ""
+        ));
+      }
+
+      container.appendChild(section);
+    });
+  };
+
+  authorPageRenderCallback = renderAuthorSections;
+
+  try {
+    const profileResponse = await fetch(`/api/auth/author?name=${encodeURIComponent(author)}`);
+    if (profileResponse.ok) {
+      const profilePayload = await profileResponse.json().catch(() => ({}));
+      renderAuthorHero(profilePayload);
+    } else {
+      renderAuthorHero({ name: author, avatarUrl: "", links: {} });
+    }
+
+    const response = await fetch(`/api/posts/by-author?author=${encodeURIComponent(author)}`);
+    if (!response.ok) throw new Error("author-load-failed");
+    const posts = await response.json();
+    const list = Array.isArray(posts) ? posts : [];
+
+    document.title = `${author} | Rusman`;
+    authorPageName = author;
+    authorPageTotalCount = list.length;
+    allPosts = list;
+    resetHomePaginationState();
+    selectedCategoryFilters.clear();
+    renderFilterSidebar(getAllCategories(allPosts));
+    renderAuthorSections();
+  } catch {
+    renderAuthorHero({ name: author, avatarUrl: "", links: {} });
+    header.innerHTML = `<h2>Posts by ${escapeHtml(author)}</h2><p>Could not load posts right now.</p>`;
+    container.innerHTML = '<div style="color: var(--error);">Please try again later.</div>';
+    allPosts = [];
+    selectedCategoryFilters.clear();
+    renderFilterSidebar([]);
+    authorPageRenderCallback = null;
+  }
+}
+
 function getSortedPosts(posts) {
   return [...posts].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
@@ -240,8 +684,10 @@ function getSortedPosts(posts) {
 function getPostImageUrl(post) {
   if (post?.thumbnailUrl) return post.thumbnailUrl;
   const imageBlock = post.content?.find(block => block.type === "image");
-  if (!imageBlock) return null;
-  return imageBlock.data?.file?.url || imageBlock.data?.url || imageBlock.data?.file || null;
+  const resolved = imageBlock
+    ? (imageBlock.data?.file?.url || imageBlock.data?.url || imageBlock.data?.file || "")
+    : "";
+  return resolved || DEFAULT_POST_IMAGE;
 }
 
 function getPostHref(post) {
@@ -437,7 +883,7 @@ function createPaginationToggleButton(label, onClick, className = "") {
   return wrap;
 }
 
-function createLatestPaginationControls(totalCount) {
+function createLatestPaginationControls(totalCount, rerender = renderHomeSections) {
   if (totalCount <= HOME_BASE_VISIBLE_COUNT) return null;
 
   const isCollapsing = latestPaginationMode === "collapse" && latestVisibleCount > HOME_BASE_VISIBLE_COUNT;
@@ -453,7 +899,7 @@ function createLatestPaginationControls(totalCount) {
       latestPaginationMode = latestVisibleCount >= totalCount ? "collapse" : "expand";
     }
 
-    renderHomeSections();
+    rerender();
   }, buttonClass);
 }
 
@@ -484,6 +930,26 @@ function renderFilterSidebar(categories) {
   const clearButton = document.getElementById("clear-filters");
   if (!filtersContainer) return;
 
+  const isAuthorPage = !!document.getElementById("author-page") && !document.getElementById("home");
+
+  const rerenderCurrentListing = () => {
+    const searchInput = document.getElementById("search-input");
+    const query = normalizeSearchText(searchInput?.value || "");
+
+    if (isAuthorPage) {
+      if (typeof authorPageRenderCallback === "function") {
+        authorPageRenderCallback();
+      }
+      return;
+    }
+
+    if (query) {
+      filterPosts(query);
+    } else {
+      renderHomeSections();
+    }
+  };
+
   filtersContainer.innerHTML = "";
 
   if (!categories.length) {
@@ -508,14 +974,7 @@ function renderFilterSidebar(categories) {
         searchVisibleCount = POSTS_PAGE_SIZE;
         categoryVisibleCounts.clear();
         categoryPaginationModes.clear();
-
-        const searchInput = document.getElementById("search-input");
-        const query = normalizeSearchText(searchInput?.value || "");
-        if (query) {
-          filterPosts(query);
-        } else {
-          renderHomeSections();
-        }
+        rerenderCurrentListing();
       });
 
       const text = document.createElement("span");
@@ -537,14 +996,7 @@ function renderFilterSidebar(categories) {
       categoryVisibleCounts.clear();
       categoryPaginationModes.clear();
       renderFilterSidebar(getAllCategories(allPosts));
-
-      const searchInput = document.getElementById("search-input");
-      const query = normalizeSearchText(searchInput?.value || "");
-      if (query) {
-        filterPosts(query);
-      } else {
-        renderHomeSections();
-      }
+      rerenderCurrentListing();
     };
   }
 }
@@ -771,6 +1223,16 @@ async function loadPost() {
       return renderParagraphBlock(block.data?.text || "");
     }
 
+    if (block.type === "header") {
+      const levelRaw = Number(block.data?.level || 2);
+      const level = Math.min(Math.max(levelRaw, 2), 3);
+      const text = String(block.data?.text || "").replace(/<[^>]*>/g, " ").trim();
+      if (!text) return "";
+      const safeText = escapeHtml(text);
+      const headingId = toHeadingId(text, "section");
+      return `<h${level} id="${headingId}">${safeText}</h${level}>`;
+    }
+
     if (block.type === "image") {
       const imgUrl = toSafeHttpUrl(block.data?.file?.url || 
                      block.data?.url || 
@@ -850,7 +1312,9 @@ async function loadPost() {
   const metaParts = [];
 
   if (post.author) {
-    metaParts.push(`By ${escapeHtml(post.author)}`);
+    const authorName = escapeHtml(post.author);
+    const authorHref = `/author.html?author=${encodeURIComponent(String(post.author || "").trim())}`;
+    metaParts.push(`By <a class="article-meta-author" href="${authorHref}">${authorName}</a>`);
   }
 
   if (Array.isArray(post.categories) && post.categories.length) {
@@ -863,9 +1327,25 @@ async function loadPost() {
     .map(part => `<span>${part}</span>`)
     .join('<span aria-hidden="true">|</span>');
 
-  const heroUrl = toSafeHttpUrl(heroImage?.data?.file?.url || 
-                  heroImage?.data?.url || 
-                  heroImage?.data?.file);
+  const heroUrl = toSafeHttpUrl(
+    heroImage?.data?.file?.url ||
+    heroImage?.data?.url ||
+    heroImage?.data?.file ||
+    getPostImageUrl(post)
+  );
+
+  const articleUrl = toSafeHttpUrl(window.location.href);
+  const fallbackDescription = bodyHtml
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 220);
+
+  applyPostSeo(post, {
+    url: articleUrl,
+    imageUrl: heroUrl || toSafeHttpUrl(DEFAULT_POST_IMAGE),
+    fallbackDescription
+  });
 
   container.innerHTML = `
     <h1>${safePostTitle}</h1>
@@ -873,6 +1353,11 @@ async function loadPost() {
     <div class="article-meta">
       ${metaHtml}
     </div>
+    <div class="article-reading-time" aria-label="Estimated reading time">⏱ ${estimateReadingMinutesFromHtml(bodyHtml)} min read</div>
+    <nav id="article-toc" class="article-toc" aria-label="Table of contents" hidden>
+      <h3>On this page</h3>
+      <ol id="article-toc-list" class="article-toc-list"></ol>
+    </nav>
     <div class="article-summary-tools">
       <button type="button" id="article-generate-summary" class="article-summary-btn">Generate Summary</button>
     </div>
@@ -891,6 +1376,10 @@ async function loadPost() {
   const summaryId = String(post?._id || post?.slug || "").trim();
   const summaryLockKey = `article-summary-locked:${summaryId}`;
   const summaryTextKey = `article-summary-text:${summaryId}`;
+
+  renderArticleToc(container);
+  initializeReadingProgress();
+  trackPostView(post);
 
   function setSummaryMessage(message, isError = false) {
     if (!summaryElement) return;
@@ -1467,6 +1956,7 @@ if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
     const hasHome = !!document.getElementById("home");
     const hasPost = !!document.getElementById("post");
+    const hasAuthorPage = !!document.getElementById("author-page");
 
     if (hasHome) {
       loadPosts();
@@ -1479,10 +1969,17 @@ if (document.readyState === 'loading') {
     if (hasPost) {
       loadPost();
     }
+
+    if (hasAuthorPage) {
+      loadAuthorPage();
+      initializeReleaseCalendar();
+      initializeMobilePanelToggles();
+    }
   });
 } else {
   const hasHome = !!document.getElementById("home");
   const hasPost = !!document.getElementById("post");
+  const hasAuthorPage = !!document.getElementById("author-page");
 
   if (hasHome) {
     loadPosts();
@@ -1494,5 +1991,11 @@ if (document.readyState === 'loading') {
 
   if (hasPost) {
     loadPost();
+  }
+
+  if (hasAuthorPage) {
+    loadAuthorPage();
+    initializeReleaseCalendar();
+    initializeMobilePanelToggles();
   }
 }

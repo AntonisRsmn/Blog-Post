@@ -16,6 +16,7 @@
     <nav>
       <a href="/" class="nav-link">Home</a>
       <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+      <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
       <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
       <a href="/admin/profile.html" class="nav-link">Profile</a>
       <button id="theme-toggle"></button>
@@ -32,6 +33,7 @@
   <nav class="mobile-sidebar-nav">
     <a href="/" class="nav-link">Home</a>
     <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+    <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
     <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
     <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
     <div class="mobile-theme-row">
@@ -103,6 +105,41 @@
           <button type="submit">Update Password</button>
         </form>
       </div>
+    </div>
+
+    <div class="admin-section" style="margin-top: 18px;">
+      <h2>Profile Links</h2>
+
+      <div class="form-group">
+        <label>Website URL</label>
+        <input id="websiteUrl" type="url" placeholder="https://yourwebsite.com" form="profileForm" />
+      </div>
+
+      <div class="form-group">
+        <label>GitHub URL</label>
+        <input id="githubUrl" type="url" placeholder="https://github.com/username" form="profileForm" />
+      </div>
+
+      <div class="form-group">
+        <label>LinkedIn URL</label>
+        <input id="linkedinUrl" type="url" placeholder="https://linkedin.com/in/username" form="profileForm" />
+      </div>
+
+      <div class="form-group">
+        <label>Instagram URL</label>
+        <input id="instagramUrl" type="url" placeholder="https://instagram.com/username" form="profileForm" />
+      </div>
+
+      <div class="form-group">
+        <label>Twitter/X URL</label>
+        <input id="twitterUrl" type="url" placeholder="https://x.com/username" form="profileForm" />
+      </div>
+
+      <div class="form-group">
+        <label>TikTok URL</label>
+        <input id="tiktokUrl" type="url" placeholder="https://tiktok.com/@username" form="profileForm" />
+      </div>
+
     </div>
   </div>
 </main>
@@ -212,6 +249,12 @@ async function loadProfile() {
   document.getElementById("lastName").value = profile.lastName || "";
   document.getElementById("username").value = profile.username || "";
   document.getElementById("avatarUrl").value = profile.avatarUrl || "";
+  document.getElementById("websiteUrl").value = profile.websiteUrl || "";
+  document.getElementById("githubUrl").value = profile.githubUrl || "";
+  document.getElementById("linkedinUrl").value = profile.linkedinUrl || "";
+  document.getElementById("instagramUrl").value = profile.instagramUrl || "";
+  document.getElementById("twitterUrl").value = profile.twitterUrl || "";
+  document.getElementById("tiktokUrl").value = profile.tiktokUrl || "";
 
   const avatarPreview = document.getElementById("avatarPreview");
   avatarPreview.src = profile.avatarUrl || "https://via.placeholder.com/72";
@@ -256,7 +299,13 @@ document.getElementById("profileForm").addEventListener("submit", async e => {
     firstName: document.getElementById("firstName").value,
     lastName: document.getElementById("lastName").value,
     username: document.getElementById("username").value,
-    avatarUrl: document.getElementById("avatarUrl").value
+    avatarUrl: document.getElementById("avatarUrl").value,
+    websiteUrl: document.getElementById("websiteUrl").value,
+    githubUrl: document.getElementById("githubUrl").value,
+    linkedinUrl: document.getElementById("linkedinUrl").value,
+    instagramUrl: document.getElementById("instagramUrl").value,
+    twitterUrl: document.getElementById("twitterUrl").value,
+    tiktokUrl: document.getElementById("tiktokUrl").value
   };
 
   const res = await fetch("/api/auth/profile", {

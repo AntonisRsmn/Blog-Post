@@ -4,10 +4,24 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Post</title>
+  <meta name="description" content="Read the latest article on Rusman Blog." />
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="Rusman" />
+  <meta property="og:title" content="Post | Rusman" />
+  <meta property="og:description" content="Read the latest article on Rusman Blog." />
+  <meta property="og:image" content="/assets/default-post.svg" />
+  <meta property="og:url" content="/post.html" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Post | Rusman" />
+  <meta name="twitter:description" content="Read the latest article on Rusman Blog." />
+  <meta name="twitter:image" content="/assets/default-post.svg" />
+  <link rel="canonical" href="/post.html" />
   <link rel="stylesheet" href="css/global.css" />
   <link rel="stylesheet" href="css/article.css" />
 </head>
 <body>
+
+<div id="article-reading-progress" class="article-reading-progress" aria-hidden="true"></div>
 
 <header>
   <div class="header-inner">
@@ -16,6 +30,7 @@
     <nav>
       <a href="/" class="nav-link">Home</a>
       <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+      <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
       <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
       <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
       <button id="theme-toggle"></button>
@@ -32,6 +47,7 @@
   <nav class="mobile-sidebar-nav">
     <a href="/" class="nav-link">Home</a>
     <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+    <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
     <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
     <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
     <div class="mobile-theme-row">

@@ -16,6 +16,7 @@
     <nav>
       <a href="/" class="nav-link">Home</a>
       <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+      <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
       <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
       <a href="/admin/profile.html" class="nav-link" data-auth-link>Profile</a>
       <button id="theme-toggle"></button>
@@ -32,6 +33,7 @@
   <nav class="mobile-sidebar-nav">
     <a href="/" class="nav-link">Home</a>
     <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+    <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
     <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
     <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
     <div class="mobile-theme-row">
@@ -54,7 +56,7 @@
       <div class="latest-posts-head">
         <div class="latest-posts-head-copy">
           <h2>Categories</h2>
-          <p class="release-manager-hint">Admins and staff can create and delete categories.</p>
+          <p class="release-manager-hint">Staff can create categories and delete only the ones they created.</p>
         </div>
         <button type="button" id="categories-new-btn" class="admin-link-btn admin-link-btn-primary" onclick="openCreateCategoryModal()">New Category</button>
       </div>
@@ -195,7 +197,7 @@ function getFilteredCategories() {
   const query = normalizeSearch(searchEl?.value);
   if (!query) return allCategories;
 
-  return allCategories.filter(name => normalizeSearch(name).includes(query));
+  return allCategories.filter(item => normalizeSearch(item.name).includes(query));
 }
 
 function renderCategories() {
@@ -217,7 +219,10 @@ function renderCategories() {
     return;
   }
 
-  categories.forEach(name => {
+  categories.forEach(itemMeta => {
+    const name = String(itemMeta?.name || "");
+    const canDelete = Boolean(itemMeta?.canDelete);
+
     const item = document.createElement("li");
     item.className = "post-item";
 
@@ -228,28 +233,38 @@ function renderCategories() {
     const actions = document.createElement("div");
     actions.className = "post-item-actions";
 
-    const removeButton = document.createElement("button");
-    removeButton.type = "button";
-    removeButton.className = "danger";
-    removeButton.textContent = "Delete";
-    removeButton.addEventListener("click", () => deleteCategory(name));
+    if (canDelete) {
+      const removeButton = document.createElement("button");
+      removeButton.type = "button";
+      removeButton.className = "danger";
+      removeButton.textContent = "Delete";
+      removeButton.addEventListener("click", () => deleteCategory(name));
+      actions.appendChild(removeButton);
+    }
 
-    actions.appendChild(removeButton);
     item.appendChild(title);
-    item.appendChild(actions);
+    if (actions.childElementCount > 0) {
+      item.appendChild(actions);
+    }
     listEl.appendChild(item);
   });
 }
 
 async function loadCategories() {
-  const response = await fetch("/api/categories");
+  const response = await fetch("/api/categories/manage");
   if (!response.ok) {
     throw new Error("Could not load categories");
   }
 
   const payload = await response.json();
   allCategories = Array.isArray(payload)
-    ? [...new Set(payload.map(normalizeCategory).filter(Boolean))].sort((a, b) => a.localeCompare(b))
+    ? payload
+      .map(entry => ({
+        name: normalizeCategory(entry?.name),
+        canDelete: Boolean(entry?.canDelete)
+      }))
+      .filter(entry => entry.name)
+      .sort((a, b) => a.name.localeCompare(b.name))
     : [];
 
   renderCategories();
@@ -313,6 +328,12 @@ async function deleteCategory(name) {
 
   const normalized = normalizeCategory(name);
   if (!normalized) return;
+
+  const selected = allCategories.find(item => item.name === normalized);
+  if (currentUserRole !== "admin" && !selected?.canDelete) {
+    showStatus("You can only delete categories created by your account.", "error");
+    return;
+  }
 
   try {
     const response = await fetch("/api/categories/" + encodeURIComponent(normalized), {

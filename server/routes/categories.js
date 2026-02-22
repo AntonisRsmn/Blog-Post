@@ -22,7 +22,7 @@ async function ensureDefaultCategories() {
 
   try {
     await Category.insertMany(
-      DEFAULT_CATEGORIES.map(name => ({ name })),
+      DEFAULT_CATEGORIES.map(name => ({ name, createdBy: null })),
       { ordered: false }
     );
   } catch {
@@ -56,6 +56,46 @@ router.get("/", async (req, res) => {
   res.json(categories);
 });
 
+router.get("/manage", auth, requireStaff, async (req, res) => {
+  await ensureDefaultCategories();
+
+  const [storedCategories, posts] = await Promise.all([
+    Category.find().select("name createdBy").lean(),
+    Post.find().select("categories -_id").lean()
+  ]);
+
+  const currentUserId = String(req.user?.userId || "");
+  const categoryMeta = new Map();
+
+  storedCategories.forEach(category => {
+    const normalizedName = normalizeCategoryName(category?.name);
+    if (!normalizedName) return;
+    const ownerId = category?.createdBy ? String(category.createdBy) : "";
+    const canDelete = req.userRole === "admin" || (ownerId && ownerId === currentUserId);
+    categoryMeta.set(normalizedName, {
+      name: normalizedName,
+      canDelete,
+      createdByMe: Boolean(ownerId && ownerId === currentUserId)
+    });
+  });
+
+  posts.forEach(post => {
+    if (!Array.isArray(post.categories)) return;
+    post.categories.forEach(category => {
+      const normalizedName = normalizeCategoryName(category);
+      if (!normalizedName || categoryMeta.has(normalizedName)) return;
+      categoryMeta.set(normalizedName, {
+        name: normalizedName,
+        canDelete: req.userRole === "admin",
+        createdByMe: false
+      });
+    });
+  });
+
+  const categories = [...categoryMeta.values()].sort((a, b) => a.name.localeCompare(b.name));
+  res.json(categories);
+});
+
 router.post("/", auth, requireStaff, async (req, res) => {
   try {
     const name = normalizeCategoryName(req.body?.name);
@@ -65,7 +105,10 @@ router.post("/", auth, requireStaff, async (req, res) => {
 
     await Category.findOneAndUpdate(
       { name },
-      { name },
+      {
+        $set: { name },
+        $setOnInsert: { createdBy: req.user?.userId || null }
+      },
       { upsert: true, new: true, setDefaultsOnInsert: true }
     );
 
@@ -88,7 +131,24 @@ router.delete("/:name", auth, requireStaff, async (req, res) => {
 
     const nameRegex = new RegExp(`^${escapeRegex(name)}$`, "i");
 
-    await Category.deleteMany({ name: nameRegex });
+    const targetCategory = await Category.findOne({ name: nameRegex }).select("_id createdBy").lean();
+    if (req.userRole !== "admin") {
+      const currentUserId = String(req.user?.userId || "");
+      const ownerId = targetCategory?.createdBy ? String(targetCategory.createdBy) : "";
+      const canDelete = Boolean(targetCategory && ownerId && ownerId === currentUserId);
+      if (!canDelete) {
+        return res.status(403).json({ error: "You can only delete categories created by your account." });
+      }
+    }
+
+    const deleteFilter = req.userRole === "admin"
+      ? { name: nameRegex }
+      : { name: nameRegex, createdBy: req.user?.userId || null };
+
+    const deleteResult = await Category.deleteMany(deleteFilter);
+    if (!deleteResult.deletedCount) {
+      return res.status(404).json({ error: "Category not found." });
+    }
 
     const posts = await Post.find({ categories: { $exists: true, $ne: [] } })
       .select("_id categories")

@@ -146,6 +146,11 @@ After deploy, verify:
 - Login works
 - Admin/Staff role restrictions work
 - Image upload works (Cloudinary)
+- Home release/event strip appears below navbar and rotates correctly
+- Home featured rotator renders correctly
+- Posts with no image show default fallback image
+- Admin delete actions show confirmation popup before delete
+- Admin status messages auto-hide after ~5 seconds
 
 --------------------------------------------------
 10) QUICK HEALTH TESTS
@@ -153,6 +158,8 @@ After deploy, verify:
 In browser:
 - /api/posts?list=1
 - /api/categories
+- /this-page-does-not-exist (should show custom frontend 404 page)
+- /api/unknown (should return JSON 404)
 
 PowerShell examples:
 - Invoke-RestMethod -Uri "http://localhost:3000/api/posts?list=1"
@@ -192,6 +199,17 @@ Current summary behavior:
 - Summary is generated in Greek.
 - Button is one-time per post per browser (stored in localStorage).
 - Backend endpoint has safety rate limit (5 requests/hour per IP).
+
+--------------------------------------------------
+13) LATEST ADMIN FEATURED FLOW
+--------------------------------------------------
+- Featured posts are managed from admin dashboard.
+- Limit is 6 featured posts.
+- If limit is exceeded, oldest featured entries are removed automatically (rollover behavior).
+- Featured endpoints are admin-only:
+  - GET /api/posts/manage/featured
+  - POST /api/posts/manage/featured
+  - DELETE /api/posts/manage/featured/:id
 
 --------------------------------------------------
 END
