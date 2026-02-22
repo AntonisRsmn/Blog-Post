@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin - Newsletter</title>
+  <link rel="stylesheet" href="../css/global.css" />
+  <link rel="stylesheet" href="../css/admin.css" />
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <a href="/" class="logo">Rusman</a>
+    <button type="button" id="mobile-menu-toggle" class="mobile-menu-toggle" aria-label="Open menu" aria-controls="mobile-sidebar" aria-expanded="false">☰</button>
+    <nav>
+      <a href="/" class="nav-link">Home</a>
+      <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+      <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+      <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
+      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+      <a href="/admin/profile.html" class="nav-link" data-auth-link>Profile</a>
+      <button id="theme-toggle"></button>
+    </nav>
+  </div>
+</header>
+
+<div id="mobile-sidebar-backdrop" class="mobile-sidebar-backdrop" hidden></div>
+<aside id="mobile-sidebar" class="mobile-sidebar" aria-label="Mobile navigation" aria-hidden="true">
+  <div class="mobile-sidebar-head">
+    <strong>Menu</strong>
+    <button type="button" id="mobile-sidebar-close" class="mobile-sidebar-close" aria-label="Close menu">✕</button>
+  </div>
+  <nav class="mobile-sidebar-nav">
+    <a href="/" class="nav-link">Home</a>
+    <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+    <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+    <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
+    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+    <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
+    <div class="mobile-theme-row">
+      <span>Theme</span>
+      <button type="button" id="mobile-theme-toggle" class="mobile-theme-switch" aria-label="Toggle theme"></button>
+    </div>
+  </nav>
+</aside>
+
+<main>
+  <div class="admin-container">
+    <div class="admin-page-head">
+      <h1 class="admin-title">Newsletter Subscribers</h1>
+      <p class="admin-subtitle">Simple email list captured from your blog footer.</p>
+    </div>
+
+    <div id="status" class="admin-status" role="status" aria-live="polite"></div>
+
+    <div class="admin-section" style="margin-bottom: 16px;">
+      <div class="latest-posts-head">
+        <div class="latest-posts-head-copy">
+          <h2>Overview</h2>
+          <p class="release-manager-hint"><a href="/admin/analytics.html">← Back to analytics dashboard</a></p>
+        </div>
+        <div class="post-item-actions">
+          <button type="button" id="newsletter-copy" class="secondary">Copy Emails</button>
+          <button type="button" id="newsletter-export" class="admin-link-btn admin-link-btn-primary">Export CSV</button>
+        </div>
+      </div>
+      <div id="newsletter-overview" class="analytics-overview-grid"></div>
+    </div>
+
+    <div class="admin-section">
+      <div class="latest-posts-head">
+        <div class="latest-posts-head-copy">
+          <h2>Email List</h2>
+          <p class="release-manager-hint">Newest first.</p>
+        </div>
+      </div>
+      <div class="posts-search-wrap" style="margin-bottom: 10px;">
+        <input id="newsletter-search" type="search" placeholder="Search subscriber email..." autocomplete="off" />
+      </div>
+      <ul id="newsletter-list" class="posts-list analytics-list"></ul>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div class="footer-left">
+      <div class="brand-small">Antonios <span style="color:var(--accent)">Rusman</span></div>
+      <div class="muted small">© <span id="year"></span> <a href="https://rusman.gr" target="_blank" rel="noopener">Antonios Rusman</a> — All rights reserved.</div>
+    </div>
+    <div class="footer-center">
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <a href="/tos.html">Terms of Service</a>
+        <a href="/privacy.html">Privacy Policy</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+
+<script src="../js/theme.js"></script>
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+const statusEl = document.getElementById('status');
+const overviewEl = document.getElementById('newsletter-overview');
+const listEl = document.getElementById('newsletter-list');
+const searchInput = document.getElementById('newsletter-search');
+const copyBtn = document.getElementById('newsletter-copy');
+const exportBtn = document.getElementById('newsletter-export');
+let subscribers = [];
+let visibleSubscribers = [];
+
+function showStatus(message, type = '') {
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.classList.remove('success', 'error', 'deleted', 'show');
+  if (type) statusEl.classList.add(type);
+  statusEl.classList.add('show');
+}
+
+function formatDate(value) {
+  const date = new Date(value || '');
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString();
+}
+
+function normalizeText(value) {
+  return String(value || '').toLowerCase().trim();
+}
+
+function toSourceLabel(item) {
+  const source = normalizeText(item?.source);
+  if (source === 'homepage-footer' || source === 'home-footer') return 'Homepage footer';
+  if (source === 'post-footer') return 'Post footer';
+  if (source === 'author-footer') return 'Author page footer';
+  if (source === 'admin-footer') return 'Admin page footer';
+  if (source === 'page-footer') return 'Page footer';
+  if (source === 'footer-global') return 'Footer (global)';
+  return String(item?.source || 'site-footer').trim() || 'site-footer';
+}
+
+function toPostLabel(item) {
+  const title = String(item?.postTitle || '').trim();
+  const slug = String(item?.postSlug || '').trim();
+  const id = String(item?.postId || '').trim();
+
+  if (title) return `Post: ${title}`;
+  if (slug) return `Post: ${slug}`;
+  if (id) return `Post ID: ${id}`;
+  return '';
+}
+
+function getFilteredSubscribers() {
+  const query = normalizeText(searchInput?.value || '');
+  if (!query) return [...subscribers];
+  return subscribers.filter((item) => normalizeText(item?.email).includes(query));
+}
+
+function renderPage(payload) {
+  subscribers = Array.isArray(payload?.items) ? payload.items : [];
+  const total = Number(payload?.total || 0);
+
+  if (overviewEl) {
+    overviewEl.innerHTML = `
+      <div class="post-item analytics-total-card">
+        <div class="release-event-date">Total Subscribers</div>
+        <div class="post-item-title analytics-total-value">${total.toLocaleString()}</div>
+      </div>
+      <div class="post-item analytics-total-card">
+        <div class="release-event-date">Loaded</div>
+        <div class="post-item-title analytics-total-value">${subscribers.length.toLocaleString()}</div>
+      </div>
+    `;
+  }
+
+  renderList();
+}
+
+function renderList() {
+  visibleSubscribers = getFilteredSubscribers();
+
+  listEl.innerHTML = '';
+  if (!visibleSubscribers.length) {
+    listEl.innerHTML = '<li class="post-item"><span class="release-event-date">No subscribers yet.</span></li>';
+    return;
+  }
+
+  visibleSubscribers.forEach((item) => {
+    const li = document.createElement('li');
+    li.className = 'post-item';
+
+    const entryWrap = document.createElement('div');
+    entryWrap.style.display = 'flex';
+    entryWrap.style.flexDirection = 'column';
+    entryWrap.style.minWidth = '0';
+    entryWrap.style.gap = '2px';
+
+    const title = document.createElement('span');
+    title.className = 'post-item-title analytics-item-title';
+    title.textContent = item?.email || '-';
+
+    const meta = document.createElement('span');
+    meta.className = 'release-event-date analytics-item-meta';
+    meta.style.marginLeft = '0';
+    meta.style.textAlign = 'left';
+    const sourceLabel = toSourceLabel(item);
+    const postLabel = toPostLabel(item);
+    const sourceText = postLabel ? `${sourceLabel} • ${postLabel}` : sourceLabel;
+    meta.textContent = `${formatDate(item?.createdAt)} • ${sourceText}`;
+
+    entryWrap.appendChild(title);
+    entryWrap.appendChild(meta);
+
+    const actions = document.createElement('div');
+    actions.className = 'post-item-actions';
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'secondary';
+    removeBtn.textContent = 'Remove';
+    removeBtn.addEventListener('click', async () => {
+      const email = String(item?.email || '').trim();
+      if (!email) return;
+
+      const confirmed = window.showAppConfirm
+        ? await window.showAppConfirm(`Remove ${email} from newsletter subscribers?`, {
+          title: 'Confirm removal',
+          confirmText: 'Remove',
+          cancelText: 'Cancel',
+          confirmClass: 'danger'
+        })
+        : window.confirm(`Remove ${email} from newsletter subscribers?`);
+      if (!confirmed) return;
+
+      removeBtn.disabled = true;
+      try {
+        const response = await fetch('/api/newsletter/subscribers', {
+          method: 'DELETE',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          showStatus(payload?.error || 'Could not remove subscriber.', 'error');
+          return;
+        }
+
+        subscribers = subscribers.filter((sub) => normalizeText(sub?.email) !== normalizeText(email));
+        renderList();
+        showStatus('Subscriber removed.', 'deleted');
+      } catch {
+        showStatus('Could not reach server.', 'error');
+      } finally {
+        removeBtn.disabled = false;
+      }
+    });
+
+    actions.appendChild(removeBtn);
+    li.appendChild(entryWrap);
+    li.appendChild(actions);
+    listEl.appendChild(li);
+  });
+}
+
+function getEmailsText() {
+  return visibleSubscribers
+    .map(item => String(item?.email || '').trim())
+    .filter(Boolean)
+    .join('\n');
+}
+
+async function copyEmails() {
+  const text = getEmailsText();
+  if (!text) {
+    showStatus('No emails to copy yet.', 'error');
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    showStatus('Emails copied to clipboard.', 'success');
+  } catch {
+    showStatus('Could not copy emails.', 'error');
+  }
+}
+
+function exportCsv() {
+  if (!subscribers.length) {
+    showStatus('No emails to export yet.', 'error');
+    return;
+  }
+
+  const rows = ['email,source,sourcePath,postId,postSlug,postTitle,createdAt'];
+  subscribers.forEach((item) => {
+    const email = String(item?.email || '').replace(/"/g, '""');
+    const source = String(item?.source || '').replace(/"/g, '""');
+    const sourcePath = String(item?.sourcePath || '').replace(/"/g, '""');
+    const postId = String(item?.postId || '').replace(/"/g, '""');
+    const postSlug = String(item?.postSlug || '').replace(/"/g, '""');
+    const postTitle = String(item?.postTitle || '').replace(/"/g, '""');
+    const createdAt = String(item?.createdAt || '').replace(/"/g, '""');
+    rows.push(`"${email}","${source}","${sourcePath}","${postId}","${postSlug}","${postTitle}","${createdAt}"`);
+  });
+
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `newsletter-subscribers-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+  showStatus('CSV exported.', 'success');
+}
+
+async function loadSubscribers() {
+  try {
+    const response = await fetch('/api/newsletter/subscribers?limit=1000', { credentials: 'same-origin' });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      showStatus(payload?.error || 'Could not load subscribers.', 'error');
+      return;
+    }
+
+    const payload = await response.json().catch(() => ({}));
+    renderPage(payload);
+    showStatus('Subscribers loaded.', 'success');
+  } catch {
+    showStatus('Could not reach server.', 'error');
+  }
+}
+
+copyBtn?.addEventListener('click', copyEmails);
+exportBtn?.addEventListener('click', exportCsv);
+searchInput?.addEventListener('input', renderList);
+loadSubscribers();
+</script>
+</body>
+</html>

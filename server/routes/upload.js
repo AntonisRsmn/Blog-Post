@@ -30,7 +30,13 @@ router.post("/", auth, requireUploaderOrStaff, upload.single("image"), (req, res
   }
 
   const stream = cloudinary.uploader.upload_stream(
-    { folder: "blog" },
+    {
+      folder: "blog",
+      resource_type: "image",
+      transformation: [
+        { fetch_format: "auto", quality: "auto:good" }
+      ]
+    },
     (err, result) => {
       if (err) return res.status(500).json({ error: "Upload failed" });
       res.json({ url: result.secure_url });

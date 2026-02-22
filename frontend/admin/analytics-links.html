@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analytics - Link Checker</title>
+  <link rel="stylesheet" href="../css/global.css" />
+  <link rel="stylesheet" href="../css/admin.css" />
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <a href="/" class="logo">Rusman</a>
+    <button type="button" id="mobile-menu-toggle" class="mobile-menu-toggle" aria-label="Open menu" aria-controls="mobile-sidebar" aria-expanded="false">☰</button>
+    <nav>
+      <a href="/" class="nav-link">Home</a>
+      <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+      <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+      <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
+      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+      <a href="/admin/profile.html" class="nav-link" data-auth-link>Profile</a>
+      <button id="theme-toggle"></button>
+    </nav>
+  </div>
+</header>
+
+<div id="mobile-sidebar-backdrop" class="mobile-sidebar-backdrop" hidden></div>
+<aside id="mobile-sidebar" class="mobile-sidebar" aria-label="Mobile navigation" aria-hidden="true">
+  <div class="mobile-sidebar-head">
+    <strong>Menu</strong>
+    <button type="button" id="mobile-sidebar-close" class="mobile-sidebar-close" aria-label="Close menu">✕</button>
+  </div>
+  <nav class="mobile-sidebar-nav">
+    <a href="/" class="nav-link">Home</a>
+    <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+    <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+    <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
+    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+    <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
+    <div class="mobile-theme-row">
+      <span>Theme</span>
+      <button type="button" id="mobile-theme-toggle" class="mobile-theme-switch" aria-label="Toggle theme"></button>
+    </div>
+  </nav>
+</aside>
+
+<main>
+  <div class="admin-container">
+    <div class="admin-page-head">
+      <h1 class="admin-title">Broken-link Checker</h1>
+      <p class="admin-subtitle">Crawl your posts and flag dead internal/outbound links.</p>
+    </div>
+
+    <div id="status" class="admin-status" role="status" aria-live="polite"></div>
+
+    <div class="admin-section" style="margin-bottom: 16px;">
+      <div class="latest-posts-head">
+        <div class="latest-posts-head-copy">
+          <h2>Scan</h2>
+          <p class="release-manager-hint"><a href="/admin/analytics.html">← Back to analytics dashboard</a></p>
+        </div>
+        <button type="button" id="run-link-check" class="admin-link-btn admin-link-btn-primary">Run Checker</button>
+      </div>
+      <div id="link-check-overview" class="analytics-overview-grid"></div>
+    </div>
+
+    <div class="admin-section">
+      <div class="latest-posts-head">
+        <div class="latest-posts-head-copy">
+          <h2>Broken Links</h2>
+          <p class="release-manager-hint">Includes source post and failed target URL.</p>
+        </div>
+      </div>
+      <ul id="link-check-results" class="posts-list analytics-list"></ul>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div class="footer-left">
+      <div class="brand-small">Antonios <span style="color:var(--accent)">Rusman</span></div>
+      <div class="muted small">© <span id="year"></span> <a href="https://rusman.gr" target="_blank" rel="noopener">Antonios Rusman</a> — All rights reserved.</div>
+    </div>
+    <div class="footer-center">
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <a href="/tos.html">Terms of Service</a>
+        <a href="/privacy.html">Privacy Policy</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+
+<script src="../js/theme.js"></script>
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+const statusEl = document.getElementById('status');
+const runButton = document.getElementById('run-link-check');
+const overviewEl = document.getElementById('link-check-overview');
+const listEl = document.getElementById('link-check-results');
+
+function showStatus(message, type = '') {
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.classList.remove('success', 'error', 'deleted', 'show');
+  if (type) statusEl.classList.add(type);
+  statusEl.classList.add('show');
+}
+
+function renderResults(payload) {
+  const totals = payload?.totals || {};
+  if (overviewEl) {
+    overviewEl.innerHTML = `
+      <div class="post-item analytics-total-card"><div class="release-event-date">Posts Checked</div><div class="post-item-title analytics-total-value">${Number(totals.posts || 0).toLocaleString()}</div></div>
+      <div class="post-item analytics-total-card"><div class="release-event-date">Unique Links</div><div class="post-item-title analytics-total-value">${Number(totals.uniqueLinksChecked || 0).toLocaleString()}</div></div>
+      <div class="post-item analytics-total-card"><div class="release-event-date">Broken (Total)</div><div class="post-item-title analytics-total-value">${Number(totals.broken || 0).toLocaleString()}</div></div>
+      <div class="post-item analytics-total-card"><div class="release-event-date">Internal / Outbound</div><div class="post-item-title analytics-total-value">${Number(totals.internalBroken || 0)} / ${Number(totals.outboundBroken || 0)}</div></div>
+    `;
+  }
+
+  const broken = Array.isArray(payload?.broken) ? payload.broken : [];
+  listEl.innerHTML = '';
+  if (!broken.length) {
+    listEl.innerHTML = '<li class="post-item"><span class="release-event-date">No broken links found.</span></li>';
+    return;
+  }
+
+  broken.forEach(item => {
+    const li = document.createElement('li');
+    li.className = 'post-item';
+    const safePostId = encodeURIComponent(item?.postId || '');
+    const safeSlug = encodeURIComponent(item?.slug || '');
+    const postHref = `/post.html?id=${safePostId}${safeSlug ? `&slug=${safeSlug}` : ''}`;
+    const targetUrl = String(item?.url || '').trim();
+    const typeLabel = String(item?.type || '').toUpperCase();
+    li.innerHTML = `
+      <a class="post-item-title analytics-item-title" href="${postHref}" target="_blank" rel="noopener">${item?.title || 'Untitled'}</a>
+      <span class="release-event-date analytics-item-meta">${typeLabel} • ${item?.status || 0} • ${item?.reason || 'failed'}</span>
+      <a class="release-event-date" href="${targetUrl}" target="_blank" rel="noopener">${targetUrl}</a>
+    `;
+    listEl.appendChild(li);
+  });
+}
+
+async function runChecker() {
+  try {
+    if (runButton) {
+      runButton.disabled = true;
+      runButton.textContent = 'Checking...';
+    }
+
+    showStatus('Running link checker...', 'success');
+    const response = await fetch('/api/posts/manage/analytics/link_health', { credentials: 'same-origin' });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      showStatus(payload?.error || 'Could not run link checker.', 'error');
+      return;
+    }
+
+    const payload = await response.json().catch(() => ({}));
+    renderResults(payload);
+    showStatus('Link check complete.', 'success');
+  } catch {
+    showStatus('Could not reach server for link checker.', 'error');
+  } finally {
+    if (runButton) {
+      runButton.disabled = false;
+      runButton.textContent = 'Run Checker';
+    }
+  }
+}
+
+runButton?.addEventListener('click', runChecker);
+runChecker();
+</script>
+</body>
+</html>

@@ -8,17 +8,67 @@ const HOME_BASE_VISIBLE_COUNT = 7;
 const HOME_TOGGLE_STEP = 9;
 let latestVisibleCount = HOME_BASE_VISIBLE_COUNT;
 let searchVisibleCount = POSTS_PAGE_SIZE;
+let pendingSearchMissTimer = null;
+const SEARCH_MISS_STORAGE_KEY = "search-miss-events-v1";
 const categoryVisibleCounts = new Map();
 let latestPaginationMode = "expand";
 const categoryPaginationModes = new Map();
 let homeRenderVersion = 0;
 let featuredRotationTimer = null;
 const FEATURED_ROTATION_MS = 5000;
+const HOME_HERO_TEST_KEY = "home-hero-featured-v1";
+const HOME_HERO_VARIANT_KEY = "home-hero-variant-v1";
+const HOME_HERO_IMPRESSION_KEY = "home-hero-impression-v1";
 const DEFAULT_POST_IMAGE = "/assets/default-post.svg";
 const DEFAULT_AUTHOR_AVATAR = "/assets/default-avatar.svg";
 let authorPageName = "";
 let authorPageTotalCount = 0;
 let authorPageRenderCallback = null;
+
+function getHomeHeroVariant() {
+  try {
+    const existing = String(localStorage.getItem(HOME_HERO_VARIANT_KEY) || "").toUpperCase();
+    if (existing === "A" || existing === "B") return existing;
+    const assigned = Math.random() < 0.5 ? "A" : "B";
+    localStorage.setItem(HOME_HERO_VARIANT_KEY, assigned);
+    return assigned;
+  } catch {
+    return Math.random() < 0.5 ? "A" : "B";
+  }
+}
+
+function trackHomeHeroExperiment(eventType, variant, post = null) {
+  const safeEventType = String(eventType || "").toLowerCase();
+  const safeVariant = String(variant || "").toUpperCase();
+  if (!safeVariant || (safeVariant !== "A" && safeVariant !== "B")) return;
+  if (safeEventType !== "impression" && safeEventType !== "click") return;
+
+  if (safeEventType === "impression") {
+    const key = `${HOME_HERO_IMPRESSION_KEY}:${safeVariant}:${window.location.pathname || "/"}`;
+    try {
+      if (sessionStorage.getItem(key) === "1") return;
+      sessionStorage.setItem(key, "1");
+    } catch {
+    }
+  }
+
+  const targetPostId = String(post?._id || "").trim();
+  const targetHref = post ? getPostHref(post) : "";
+
+  fetch("/api/metrics/ab-home-hero", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    keepalive: true,
+    body: JSON.stringify({
+      testKey: HOME_HERO_TEST_KEY,
+      variant: safeVariant,
+      eventType: safeEventType,
+      path: window.location.pathname || "/",
+      targetPostId,
+      targetHref
+    })
+  }).catch(() => {});
+}
 
 function normalizeCategoryLabel(value) {
   return String(value || "").replace(/\s+/g, " ").trim().toUpperCase();
@@ -53,6 +103,23 @@ function estimateReadingMinutesFromHtml(html) {
   const words = plain ? plain.split(" ").filter(Boolean).length : 0;
   if (!words) return 1;
   return Math.max(1, Math.ceil(words / 220));
+}
+
+function getImageAltFromBlock(block, fallback = "Article image") {
+  const rawAlt = String(
+    block?.data?.alt ||
+    block?.data?.caption ||
+    block?.data?.file?.alt ||
+    ""
+  );
+
+  const normalized = rawAlt
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (normalized) return normalized;
+  return String(fallback || "Article image").trim() || "Article image";
 }
 
 function initializeReadingProgress() {
@@ -558,8 +625,10 @@ async function loadAuthorPage() {
     latestVisibleCount = Math.min(Math.max(latestVisibleCount, HOME_BASE_VISIBLE_COUNT), latestSorted.length);
     const latestGrid = document.createElement("div");
     latestGrid.className = "home-grid";
-    latestSorted.slice(0, latestVisibleCount).forEach(post => {
-      latestGrid.appendChild(createPostCard(post));
+    latestSorted.slice(0, latestVisibleCount).forEach((post, index) => {
+      latestGrid.appendChild(createPostCard(post, index === 0
+        ? { imageLoading: "eager", imageFetchPriority: "high" }
+        : undefined));
     });
 
     latestSection.appendChild(latestHead);
@@ -698,6 +767,104 @@ function getPostHref(post) {
     : `post.html?slug=${encodedSlug}`;
 }
 
+function normalizePostCategories(post) {
+  if (!Array.isArray(post?.categories)) return [];
+  return post.categories
+    .map(category => normalizeCategoryLabel(category))
+    .filter(Boolean);
+}
+
+function scoreRelatedPost(candidate, currentPost) {
+  const currentCategories = new Set(normalizePostCategories(currentPost));
+  const candidateCategories = normalizePostCategories(candidate);
+  let overlap = 0;
+  candidateCategories.forEach((category) => {
+    if (currentCategories.has(category)) overlap += 1;
+  });
+
+  const sameAuthor = String(candidate?.author || "").trim().toLowerCase() === String(currentPost?.author || "").trim().toLowerCase();
+  const recency = Number(new Date(candidate?.createdAt || 0).getTime() || 0);
+
+  return overlap * 10 + (sameAuthor ? 3 : 0) + (recency / 1e13);
+}
+
+async function findRelatedPosts(currentPost, maxItems = 4) {
+  try {
+    const response = await fetch("/api/posts?list=1");
+    if (!response.ok) return [];
+    const posts = await response.json();
+    if (!Array.isArray(posts)) return [];
+
+    const currentId = String(currentPost?._id || "");
+    const currentSlug = String(currentPost?.slug || "").trim().toLowerCase();
+
+    const related = posts
+      .filter((post) => {
+        const postId = String(post?._id || "");
+        const postSlug = String(post?.slug || "").trim().toLowerCase();
+        if (currentId && postId === currentId) return false;
+        if (currentSlug && postSlug === currentSlug) return false;
+        return true;
+      })
+      .map((post) => ({ post, score: scoreRelatedPost(post, currentPost) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, Math.max(1, maxItems))
+      .map(entry => entry.post);
+
+    return related;
+  } catch {
+    return [];
+  }
+}
+
+async function renderRelatedPosts(currentPost, articleContainer) {
+  if (!articleContainer) return;
+
+  const related = await findRelatedPosts(currentPost, 4);
+  if (!related.length) return;
+
+  const section = document.createElement("section");
+  section.className = "related-posts";
+  section.setAttribute("aria-label", "Related posts");
+  section.innerHTML = `
+    <div class="related-posts-head">
+      <h2>Related Posts</h2>
+      <p>More articles you might like</p>
+    </div>
+    <div class="related-posts-grid"></div>
+  `;
+
+  const grid = section.querySelector(".related-posts-grid");
+  related.forEach((post) => {
+    const card = document.createElement("a");
+    card.className = "related-post-card";
+    card.href = getPostHref(post);
+    card.setAttribute("data-perf-source", "related-post-click");
+
+    const imageUrl = toSafeHttpUrl(getPostImageUrl(post));
+    const safeTitle = escapeHtml(post?.title || "Untitled");
+    const safeExcerpt = escapeHtml(getDisplayExcerpt(post, 110));
+    const date = new Date(post?.createdAt || Date.now()).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric"
+    });
+
+    card.innerHTML = `
+      ${imageUrl ? `<img src="${imageUrl}" alt="${safeTitle}" class="related-post-image" loading="lazy" decoding="async">` : '<div class="related-post-image" style="background: var(--bg-secondary);"></div>'}
+      <div class="related-post-content">
+        <h3>${safeTitle}</h3>
+        <p>${safeExcerpt}</p>
+        <span>${date}</span>
+      </div>
+    `;
+
+    grid.appendChild(card);
+  });
+
+  articleContainer.appendChild(section);
+}
+
 function clearFeaturedRotationTimer() {
   if (!featuredRotationTimer) return;
   clearInterval(featuredRotationTimer);
@@ -819,10 +986,70 @@ function createFeaturedRotator(posts) {
   return section;
 }
 
-function createPostCard(post) {
+function createFeaturedSplit(posts) {
+  const featuredPosts = Array.isArray(posts) ? posts.slice(0, 4) : [];
+  if (!featuredPosts.length) return null;
+
+  const section = document.createElement("section");
+  section.className = "featured-split";
+  section.setAttribute("aria-label", "Featured posts");
+
+  const lead = featuredPosts[0];
+  const side = featuredPosts.slice(1);
+
+  const leadCard = document.createElement("a");
+  leadCard.className = "featured-split-lead";
+  leadCard.href = getPostHref(lead);
+  leadCard.addEventListener("click", () => trackHomeHeroExperiment("click", "B", lead));
+
+  const leadImageUrl = toSafeHttpUrl(getPostImageUrl(lead));
+  const leadDate = new Date(lead.createdAt).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric"
+  });
+  const leadTitle = escapeHtml(lead.title || "Untitled");
+  const leadAuthor = escapeHtml(lead.author || "");
+  const leadAuthorText = leadAuthor ? `By ${leadAuthor} • ` : "";
+
+  leadCard.innerHTML = `
+    ${leadImageUrl ? `<img src="${leadImageUrl}" alt="${leadTitle}" class="featured-split-image" loading="eager" decoding="async">` : '<div class="featured-split-image" style="background: var(--bg-secondary);"></div>'}
+    <div class="featured-split-overlay">
+      <span class="featured-rotator-badge">Featured</span>
+      <h2 class="featured-split-title">${leadTitle}</h2>
+      <span class="featured-rotator-meta">${leadAuthorText}${leadDate}</span>
+    </div>
+  `;
+
+  const sideList = document.createElement("div");
+  sideList.className = "featured-split-list";
+  side.forEach((post) => {
+    const item = document.createElement("a");
+    item.className = "featured-split-item";
+    item.href = getPostHref(post);
+    item.addEventListener("click", () => trackHomeHeroExperiment("click", "B", post));
+
+    const safeTitle = escapeHtml(post.title || "Untitled");
+    const safeExcerpt = escapeHtml(getDisplayExcerpt(post, 90));
+    item.innerHTML = `
+      <h3>${safeTitle}</h3>
+      <p>${safeExcerpt}</p>
+    `;
+    sideList.appendChild(item);
+  });
+
+  section.appendChild(leadCard);
+  section.appendChild(sideList);
+  return section;
+}
+
+function createPostCard(post, options = {}) {
   const card = document.createElement("a");
   card.href = getPostHref(post);
   card.className = "post-card";
+
+  const imageLoading = options.imageLoading === "eager" ? "eager" : "lazy";
+  const imageFetchPriority = options.imageFetchPriority === "high" ? "high" : "auto";
 
   const imageUrl = toSafeHttpUrl(getPostImageUrl(post));
   const date = new Date(post.createdAt).toLocaleDateString("en-US", {
@@ -839,7 +1066,7 @@ function createPostCard(post) {
     : "";
 
   card.innerHTML = `
-    ${imageUrl ? `<img src="${imageUrl}" alt="${safeTitle}" class="post-card-image" loading="lazy" decoding="async">` : '<div class="post-card-image" style="background: var(--bg-secondary);"></div>'}
+    ${imageUrl ? `<img src="${imageUrl}" alt="${safeTitle}" class="post-card-image" loading="${imageLoading}" fetchpriority="${imageFetchPriority}" decoding="async">` : '<div class="post-card-image" style="background: var(--bg-secondary);"></div>'}
     <div class="post-card-content">
       <h3 class="post-card-title">${safeTitle}</h3>
       ${categoryText ? `<div class="post-card-categories">${categoryText}</div>` : ""}
@@ -1044,9 +1271,20 @@ function renderHomeSections() {
       featuredCombined.push(post);
     });
 
-    const featuredRotator = createFeaturedRotator(featuredCombined);
-    if (featuredRotator) {
-      container.appendChild(featuredRotator);
+    const variant = getHomeHeroVariant();
+    const featuredBlock = variant === "B"
+      ? createFeaturedSplit(featuredCombined)
+      : createFeaturedRotator(featuredCombined);
+    if (featuredBlock) {
+      container.appendChild(featuredBlock);
+      trackHomeHeroExperiment("impression", variant);
+      if (variant === "A") {
+        featuredBlock.querySelectorAll(".featured-rotator-slide").forEach((link, index) => {
+          const post = featuredCombined[index];
+          if (!post) return;
+          link.addEventListener("click", () => trackHomeHeroExperiment("click", "A", post));
+        });
+      }
     }
   }
 
@@ -1069,8 +1307,10 @@ function renderHomeSections() {
   latestVisibleCount = Math.min(Math.max(latestVisibleCount, HOME_BASE_VISIBLE_COUNT), latestSorted.length);
   const latestGrid = document.createElement("div");
   latestGrid.className = "home-grid";
-  latestSorted.slice(0, latestVisibleCount).forEach(post => {
-    latestGrid.appendChild(createPostCard(post));
+  latestSorted.slice(0, latestVisibleCount).forEach((post, index) => {
+    latestGrid.appendChild(createPostCard(post, index === 0
+      ? { imageLoading: "eager", imageFetchPriority: "high" }
+      : undefined));
   });
 
   latestSection.appendChild(latestHead);
@@ -1238,7 +1478,8 @@ async function loadPost() {
                      block.data?.url || 
                      block.data?.file);
       if (!imgUrl) return "";
-      return `<img src="${imgUrl}" alt="Article image" class="article-image">`;
+      const imageAlt = escapeHtml(getImageAltFromBlock(block, post?.title || "Article image"));
+      return `<img src="${imgUrl}" alt="${imageAlt}" class="article-image" loading="lazy" decoding="async">`;
     }
 
     if (block.type === "embed" && block.data.service === "youtube") {
@@ -1247,7 +1488,10 @@ async function loadPost() {
       return `
         <div class="article-embed">
           <iframe
-            src="https://www.youtube.com/embed/${videoId}"
+            src="https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1"
+            loading="lazy"
+            referrerpolicy="strict-origin-when-cross-origin"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowfullscreen>
           </iframe>
         </div>
@@ -1349,7 +1593,7 @@ async function loadPost() {
 
   container.innerHTML = `
     <h1>${safePostTitle}</h1>
-    ${heroUrl ? `<img src="${heroUrl}" alt="${safePostTitle}" class="article-image">` : ""}
+    ${heroUrl ? `<img src="${heroUrl}" alt="${safePostTitle}" class="article-image" loading="eager" decoding="async">` : ""}
     <div class="article-meta">
       ${metaHtml}
     </div>
@@ -1452,15 +1696,162 @@ async function loadPost() {
     }
   });
 
-  loadTwitterWidgets(container);
+  scheduleNonCriticalTask(() => {
+    renderRelatedPosts(post, container);
+  }, 220);
 
-  await loadViewer();
-  loadComments(post._id);
-  setupCommentForm(post._id);
+  if (summaryButton) {
+    summaryButton.setAttribute("data-perf-source", "summary-generate");
+  }
+
+  (() => {
+    let commentsInitialized = false;
+    let embedsInitialized = false;
+
+    const initializeComments = async () => {
+      if (commentsInitialized) return;
+      commentsInitialized = true;
+      await loadViewer();
+      setupCommentSort(post._id);
+      await loadComments(post._id, currentCommentSort);
+      setupCommentForm(post._id);
+    };
+
+    const initializeEmbeds = () => {
+      if (embedsInitialized) return;
+      embedsInitialized = true;
+      loadTwitterWidgets(container);
+    };
+
+    const commentsRoot = document.getElementById("comments");
+    if (commentsRoot && "IntersectionObserver" in window) {
+      const commentsObserver = new IntersectionObserver((entries) => {
+        if (entries.some(entry => entry.isIntersecting)) {
+          commentsObserver.disconnect();
+          initializeComments();
+        }
+      }, { rootMargin: "240px 0px" });
+      commentsObserver.observe(commentsRoot);
+    } else {
+      window.setTimeout(() => initializeComments(), 1200);
+    }
+
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(() => initializeComments(), { timeout: 3200 });
+    } else {
+      window.setTimeout(() => initializeComments(), 2400);
+    }
+
+    if (container.querySelector(".twitter-tweet")) {
+      if ("IntersectionObserver" in window) {
+        const tweetNode = container.querySelector(".twitter-tweet");
+        if (tweetNode) {
+          const embedObserver = new IntersectionObserver((entries) => {
+            if (entries.some(entry => entry.isIntersecting)) {
+              embedObserver.disconnect();
+              initializeEmbeds();
+            }
+          }, { rootMargin: "320px 0px" });
+          embedObserver.observe(tweetNode);
+        }
+      }
+
+      window.addEventListener("scroll", () => initializeEmbeds(), { once: true, passive: true });
+
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(() => initializeEmbeds(), { timeout: 4500 });
+      } else {
+        window.setTimeout(() => initializeEmbeds(), 3500);
+      }
+    }
+  })();
 }
 
 let currentUser = null;
 let currentPostId = null;
+let currentCommentSort = "newest";
+
+function setCommentStatus(message, isError = false) {
+  const status = document.getElementById("commentStatus");
+  if (!status) return;
+  status.textContent = String(message || "");
+  status.style.color = isError ? "var(--error)" : "var(--text-muted)";
+}
+
+function applyReactionPayloadToComment(commentId, payload) {
+  const safeCommentId = String(commentId || "").trim();
+  if (!safeCommentId || !payload || typeof payload !== "object") return false;
+
+  const item = document.querySelector(`.comment-item[data-comment-id="${safeCommentId}"]`);
+  if (!item) return false;
+
+  const nextReaction = String(payload.userReaction || "");
+  const buttons = item.querySelectorAll(".comment-reaction-btn");
+
+  buttons.forEach((button) => {
+    const type = String(button.dataset.type || "").trim();
+    const count = Number(payload?.reactions?.[type] || 0);
+    const countElement = button.querySelector(".comment-reaction-count");
+    if (countElement) {
+      countElement.textContent = String(Number.isFinite(count) ? Math.max(0, count) : 0);
+    }
+
+    button.classList.toggle("is-active", type && nextReaction === type);
+  });
+
+  return true;
+}
+
+function createCommentReactionButton(comment, type, label, icon) {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "comment-reaction-btn";
+  button.dataset.type = type;
+  button.setAttribute("data-perf-source", `comment-reaction:${type}`);
+  const count = Number(comment?.reactions?.[type] || 0);
+  const active = String(comment?.userReaction || "") === type;
+  if (active) button.classList.add("is-active");
+  button.innerHTML = `
+    <span class="comment-reaction-icon" aria-hidden="true">${icon}</span>
+    <span class="comment-reaction-label">${label}</span>
+    <strong class="comment-reaction-count">${count}</strong>
+  `;
+
+  button.addEventListener("click", async () => {
+    if (!currentUser) {
+      setCommentStatus("Please log in to react to comments.", true);
+      return;
+    }
+
+    try {
+      button.disabled = true;
+      const response = await fetch(`/api/comments/${comment._id}/reaction`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type })
+      });
+
+      if (!response.ok) {
+        setCommentStatus("Could not update reaction.", true);
+        button.disabled = false;
+        return;
+      }
+
+      const payload = await response.json().catch(() => null);
+      const applied = applyReactionPayloadToComment(comment._id, payload);
+      if (!applied && currentPostId) {
+        await loadComments(currentPostId, currentCommentSort);
+      }
+      setCommentStatus("");
+    } catch {
+      setCommentStatus("Could not reach the server.", true);
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  return button;
+}
 
 async function loadViewer() {
   const res = await fetch("/api/auth/profile");
@@ -1472,11 +1863,18 @@ async function loadViewer() {
   currentUser = await res.json();
 }
 
-async function loadComments(postId) {
+async function loadComments(postId, sort = currentCommentSort) {
   const list = document.getElementById("commentList");
   if (!list) return;
 
-  const res = await fetch(`/api/comments/${postId}`);
+  currentCommentSort = String(sort || "newest");
+
+  const sortSelect = document.getElementById("commentSort");
+  if (sortSelect && sortSelect.value !== currentCommentSort) {
+    sortSelect.value = currentCommentSort;
+  }
+
+  const res = await fetch(`/api/comments/${postId}?sort=${encodeURIComponent(currentCommentSort)}`);
   const comments = res.ok ? await res.json() : [];
 
   list.innerHTML = "";
@@ -1488,11 +1886,17 @@ async function loadComments(postId) {
   comments.forEach(comment => {
     const item = document.createElement("div");
     item.className = "comment-item";
-    const date = new Date(comment.createdAt).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
+    item.dataset.commentId = String(comment?._id || "");
+    const createdAtDate = new Date(comment.createdAt);
+    const date = Number.isNaN(createdAtDate.getTime())
+      ? ""
+      : createdAtDate.toLocaleString('en-US', {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
 
     const canDelete = currentUser && ((currentUser.role === "admin" || currentUser.role === "staff") || currentUser._id === comment.userId);
 
@@ -1503,13 +1907,18 @@ async function loadComments(postId) {
       const avatar = document.createElement("img");
       avatar.src = comment.authorAvatar;
       avatar.alt = comment.authorName || "User avatar";
+      avatar.loading = "lazy";
+      avatar.decoding = "async";
       authorWrap.appendChild(avatar);
     }
 
     const identity = document.createElement("div");
+    identity.className = "comment-author-meta";
     const authorName = document.createElement("strong");
+    authorName.className = "comment-author-name";
     authorName.textContent = comment.authorName || "User";
     const createdAt = document.createElement("span");
+    createdAt.className = "comment-author-date";
     createdAt.textContent = date;
     identity.appendChild(authorName);
     identity.appendChild(createdAt);
@@ -1524,10 +1933,18 @@ async function loadComments(postId) {
     }
 
     const text = document.createElement("p");
+    text.className = "comment-text";
     text.textContent = comment.text || "";
+
+    const reactions = document.createElement("div");
+    reactions.className = "comment-reactions";
+    reactions.appendChild(createCommentReactionButton(comment, "like", "Like", "👍"));
+    reactions.appendChild(createCommentReactionButton(comment, "helpful", "Helpful", "💡"));
+    reactions.appendChild(createCommentReactionButton(comment, "funny", "Funny", "😄"));
 
     item.appendChild(authorWrap);
     item.appendChild(text);
+    item.appendChild(reactions);
     list.appendChild(item);
   });
 }
@@ -1543,16 +1960,41 @@ async function deleteComment(commentId) {
     return;
   }
 
-    if (!currentPostId) return;
-    loadComments(currentPostId);
+  if (!currentPostId) return;
+  loadComments(currentPostId, currentCommentSort);
+}
+
+function setupCommentSort(postId) {
+  const sortSelect = document.getElementById("commentSort");
+  if (!sortSelect) return;
+  if (sortSelect.dataset.bound === "1") return;
+  sortSelect.dataset.bound = "1";
+  sortSelect.setAttribute("data-perf-source", "comment-sort-change");
+
+  sortSelect.addEventListener("change", () => {
+    currentCommentSort = String(sortSelect.value || "newest");
+    loadComments(postId, currentCommentSort);
+  });
 }
 
 function setupCommentForm(postId) {
   const form = document.getElementById("commentForm");
   const status = document.getElementById("commentStatus");
   const loginPrompt = document.getElementById("commentLoginPrompt");
+  const textArea = document.getElementById("commentText");
   
   if (!form || !status) return;
+  if (form.dataset.bound === "1") return;
+  form.dataset.bound = "1";
+
+  const submitButton = form.querySelector('button[type="submit"]');
+  if (submitButton) {
+    submitButton.setAttribute("data-perf-source", "comment-submit");
+  }
+
+  if (textArea) {
+    textArea.setAttribute("data-perf-source", "comment-typing");
+  }
 
   // Check if user is logged in
   if (!currentUser) {
@@ -1574,8 +2016,7 @@ function setupCommentForm(postId) {
     e.preventDefault();
     status.textContent = "";
 
-    const textArea = document.getElementById("commentText");
-    const text = textArea.value.trim();
+    const text = textArea ? textArea.value.trim() : "";
     if (!text) return;
 
     const res = await fetch(`/api/comments/${postId}`, {
@@ -1586,18 +2027,22 @@ function setupCommentForm(postId) {
 
     if (res.status === 401) {
       status.textContent = "Please log in to comment.";
+      status.style.color = "var(--error)";
       return;
     }
 
     if (!res.ok) {
-      status.textContent = "Could not post comment. Try again.";
+      const payload = await res.json().catch(() => ({}));
+      status.textContent = payload.error || "Could not post comment. Try again.";
+      status.style.color = "var(--error)";
       return;
     }
 
     textArea.value = "";
     status.textContent = "Comment posted.";
-    loadComments(postId);
-  }, { once: true });
+    status.style.color = "var(--text-muted)";
+    loadComments(postId, currentCommentSort);
+  });
 }
 
 // Search functionality
@@ -1664,6 +2109,86 @@ function normalizeSearchText(value) {
     .replace(/[-_]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function hasTrackedSearchMissThisSession(query) {
+  const normalized = normalizeSearchText(query);
+  if (!normalized) return true;
+
+  const key = `search-miss:${normalized}`;
+  try {
+    return sessionStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+function markSearchMissTracked(query) {
+  const normalized = normalizeSearchText(query);
+  if (!normalized) return;
+
+  const key = `search-miss:${normalized}`;
+  try {
+    sessionStorage.setItem(key, "1");
+  } catch {
+  }
+}
+
+function recordSearchMissLocally(query) {
+  const normalized = normalizeSearchText(query);
+  if (!normalized || normalized.length < 2) return;
+
+  try {
+    const nowIso = new Date().toISOString();
+    const raw = localStorage.getItem(SEARCH_MISS_STORAGE_KEY);
+    const parsed = JSON.parse(String(raw || "[]"));
+    const items = Array.isArray(parsed) ? parsed : [];
+
+    items.push({
+      query: normalized,
+      normalizedQuery: normalized,
+      path: window.location.pathname || "/",
+      createdAt: nowIso
+    });
+
+    const limited = items.slice(-500);
+    localStorage.setItem(SEARCH_MISS_STORAGE_KEY, JSON.stringify(limited));
+  } catch {
+  }
+}
+
+function trackMissingSearchQuery(query, resultCount) {
+  const normalized = normalizeSearchText(query);
+  if (!normalized || normalized.length < 2) return;
+  if (Number(resultCount) > 0) return;
+  if (hasTrackedSearchMissThisSession(normalized)) return;
+
+  if (pendingSearchMissTimer) {
+    clearTimeout(pendingSearchMissTimer);
+  }
+
+  pendingSearchMissTimer = setTimeout(async () => {
+    pendingSearchMissTimer = null;
+
+    if (hasTrackedSearchMissThisSession(normalized)) return;
+
+    try {
+      recordSearchMissLocally(normalized);
+      await fetch("/api/metrics/search-miss", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify({
+          query: normalized,
+          resultCount: 0,
+          path: window.location.pathname || "/",
+          locale: document.documentElement?.lang || navigator.language || ""
+        })
+      });
+      markSearchMissTracked(normalized);
+    } catch {
+    }
+  }, 500);
 }
 
 function formatReleaseDate(dateValue) {
@@ -1882,6 +2407,7 @@ function filterPosts(query) {
 
   // Display results count
   if (filtered.length === 0) {
+    trackMissingSearchQuery(normalizedQuery, 0);
     if (container) container.className = "home-sections";
     searchResults.innerHTML = '<span style="color: var(--text-muted);">No articles found matching your search</span>';
     container.innerHTML = `
@@ -1921,8 +2447,10 @@ function displayPosts(posts) {
   }
 
   const visiblePosts = sorted.slice(0, searchVisibleCount);
-  visiblePosts.forEach((post) => {
-    container.appendChild(createPostCard(post));
+  visiblePosts.forEach((post, index) => {
+    container.appendChild(createPostCard(post, index === 0
+      ? { imageLoading: "eager", imageFetchPriority: "high" }
+      : undefined));
   });
 
   if (visiblePosts.length < sorted.length) {
@@ -1951,6 +2479,70 @@ function initializeBackToTopButton() {
   updateVisibility();
 }
 
+function scheduleNonCriticalTask(task, delayMs = 0) {
+  if (typeof task !== "function") return;
+
+  const runTask = () => {
+    if ("requestIdleCallback" in window) {
+      window.requestIdleCallback(() => task(), { timeout: 2000 });
+      return;
+    }
+
+    window.setTimeout(task, delayMs || 120);
+  };
+
+  if (document.readyState === "complete") {
+    runTask();
+    return;
+  }
+
+  window.addEventListener("load", runTask, { once: true });
+}
+
+function initializeNewsletterCapture() {
+  const form = document.getElementById("newsletter-form");
+  const emailInput = document.getElementById("newsletter-email");
+  const statusEl = document.getElementById("newsletter-status");
+  if (!form || !emailInput || !statusEl) return;
+  if (form.dataset.bound === "1") return;
+  form.dataset.bound = "1";
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const email = String(emailInput.value || "").trim();
+    if (!email) return;
+
+    statusEl.textContent = "Subscribing...";
+    statusEl.classList.remove("is-error", "is-success");
+
+    try {
+      const response = await fetch("/api/newsletter/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email,
+          source: "homepage-footer",
+          locale: document.documentElement?.lang || navigator.language || ""
+        })
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        statusEl.textContent = payload?.error || "Could not subscribe right now.";
+        statusEl.classList.add("is-error");
+        return;
+      }
+
+      statusEl.textContent = "Thanks! You are subscribed.";
+      statusEl.classList.add("is-success");
+      emailInput.value = "";
+    } catch {
+      statusEl.textContent = "Could not subscribe right now.";
+      statusEl.classList.add("is-error");
+    }
+  });
+}
+
 // Load posts on page load
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', function() {
@@ -1960,20 +2552,22 @@ if (document.readyState === 'loading') {
 
     if (hasHome) {
       loadPosts();
-      initializeSearch();
-      initializeReleaseCalendar();
       initializeMobilePanelToggles();
       initializeBackToTopButton();
+      initializeNewsletterCapture();
+      scheduleNonCriticalTask(() => initializeSearch(), 100);
+      scheduleNonCriticalTask(() => initializeReleaseCalendar(), 200);
     }
 
     if (hasPost) {
       loadPost();
+      initializeNewsletterCapture();
     }
 
     if (hasAuthorPage) {
       loadAuthorPage();
-      initializeReleaseCalendar();
       initializeMobilePanelToggles();
+      scheduleNonCriticalTask(() => initializeReleaseCalendar(), 120);
     }
   });
 } else {
@@ -1983,19 +2577,21 @@ if (document.readyState === 'loading') {
 
   if (hasHome) {
     loadPosts();
-    initializeSearch();
-    initializeReleaseCalendar();
     initializeMobilePanelToggles();
     initializeBackToTopButton();
+    initializeNewsletterCapture();
+    scheduleNonCriticalTask(() => initializeSearch(), 100);
+    scheduleNonCriticalTask(() => initializeReleaseCalendar(), 200);
   }
 
   if (hasPost) {
     loadPost();
+    initializeNewsletterCapture();
   }
 
   if (hasAuthorPage) {
     loadAuthorPage();
-    initializeReleaseCalendar();
     initializeMobilePanelToggles();
+    scheduleNonCriticalTask(() => initializeReleaseCalendar(), 120);
   }
 }

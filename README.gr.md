@@ -24,14 +24,21 @@
 
 ### Staff/Admin χρήστες
 - Πρόσβαση στις admin σελίδες (`dashboard`, `posts`, `events`, `categories`, `staff`, `profile`)
+- Πρόσβαση στη σελίδα Core Web Vitals (`/admin/vitals.html`) από το navbar (visibility για staff/admin)
 - Δημιουργία/επεξεργασία/διαγραφή άρθρων (ισχύουν ownership rules για staff σε edit/delete)
 - Upload εικόνων για περιεχόμενο
 - Διαχείριση release calendar events
+- Χρήση Broken-link Checker σελίδας (`/admin/analytics-links.html`) για έλεγχο internal/outbound links
 - Διαχείριση featured posts από το admin dashboard (μόνο admin, έως 6 με αυτόματο rollover)
 - Διαχείριση κατηγοριών:
   - δημιουργία: admin + staff
   - διαγραφή: admin διαγράφει όλες, staff διαγράφει μόνο όσες δημιούργησε ο ίδιος
   - επεξεργασία/μετονομασία: απενεργοποιημένη
+- Διαχείριση newsletter subscribers από το admin page (`/admin/newsletter.html`):
+  - προβολή total/loaded subscribers
+  - αναζήτηση με email
+  - αφαίρεση subscriber με κοινό delete confirmation popup
+  - copy/export της τρέχουσας φιλτραρισμένης λίστας
 - Διαχείριση λίστας staff access (με τα τρέχοντα permissions επιτρέπεται σε admin και staff)
 - Κοινό confirmation modal πριν από destructive διαγραφές
 - Τα admin status μηνύματα κρύβονται αυτόματα σε 5 δευτερόλεπτα
@@ -60,6 +67,14 @@
 - Στο admin dashboard, το calendar panel δείχνει τα 10 πιο πρόσφατα events.
 - Στο create event modal, posts που έχουν ήδη event δεν εμφανίζονται στο dropdown (εκτός από το event που επεξεργάζεσαι).
 - Άγνωστα non-API routes οδηγούν στην custom frontend 404 σελίδα, ενώ άγνωστα API routes επιστρέφουν JSON 404.
+- Τα newsletter subscriptions καταγράφονται από τη footer φόρμα (home/post ροές) και γίνονται upsert ανά email (χωρίς διπλότυπα).
+- Στο mobile footer το newsletter εμφανίζεται πάνω από το υπόλοιπο footer περιεχόμενο, ενώ στο desktop διατηρείται ισορροπημένο 3-column layout.
+- Στη σελίδα προφίλ, το τμήμα “Profile Links” εμφανίζεται σε desktop ως 3+3 πεδία (3 links επάνω, 3 κάτω) και σε mobile γίνεται μονή στήλη.
+- Το staff/admin navbar εμφανίζει πλέον link για Vitals σε admin και δημόσιες/κοινές σελίδες όπου υπάρχουν staff links.
+- Η σελίδα Vitals περιλαμβάνει quick improvement guide + glossary με ορισμούς metrics + footer.
+- Τα timestamps στα σχόλια των post pages δείχνουν και ώρα/λεπτά (όχι μόνο ημερομηνία).
+- Τα YouTube embeds χρησιμοποιούν `youtube-nocookie` mode και το AdSense παραλείπεται σε localhost/dev για λιγότερα μη-χρήσιμα console warnings.
+- Τα analytics endpoints για link checker/search misses υποστηρίζουν και hyphen και underscore path variants.
 
 ---
 
@@ -128,6 +143,15 @@
   - `GET /api/posts/manage/analytics/posts` (πλήρες ranked posts)
   - `GET /api/posts/manage/analytics/categories` (πλήρες ranked categories)
   - `GET /api/posts/manage/analytics/authors` (πλήρες ranked authors)
+  - `GET /api/posts/manage/analytics/search-misses` και `GET /api/posts/manage/analytics/search_misses`
+  - `GET /api/posts/manage/analytics/link-health` και `GET /api/posts/manage/analytics/link_health`
+- Metrics:
+  - `POST /api/metrics/web-vitals`
+  - `GET /api/metrics/web-vitals` (staff/admin)
+- Newsletter:
+  - `POST /api/newsletter/subscribe`
+  - `GET /api/newsletter/subscribers` (staff/admin)
+  - `DELETE /api/newsletter/subscribers` (staff/admin, body: `email`)
 - Featured management (μόνο admin):
   - `GET /api/posts/manage/featured`
   - `POST /api/posts/manage/featured` (body: `postId`)

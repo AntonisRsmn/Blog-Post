@@ -48,6 +48,7 @@
       <a href="/" class="nav-link">Home</a>
       <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
       <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+      <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
       <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
       <a href="/admin/profile.html" class="nav-link">Profile</a>
       <button id="theme-toggle"></button>
@@ -65,6 +66,7 @@
     <a href="/" class="nav-link">Home</a>
     <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
     <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+    <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
     <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
     <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
     <div class="mobile-theme-row">
@@ -113,7 +115,7 @@
           </div>
         </div>
 
-        <div class="admin-section">
+        <div class="admin-section dashboard-categories-section">
           <div class="latest-posts-head">
             <div class="latest-posts-head-copy">
               <h2>Categories</h2>
@@ -127,7 +129,7 @@
           </div>
         </div>
 
-        <div class="admin-section" id="dashboard-featured-section">
+        <div class="admin-section dashboard-featured-section" id="dashboard-featured-section">
           <div class="latest-posts-head">
             <div class="latest-posts-head-copy">
               <h2>Featured Posts</h2>
@@ -182,6 +184,12 @@
           <div class="form-group">
             <label for="post-summary">SEO Meta Description</label>
             <textarea id="post-summary" rows="3" maxlength="220" placeholder="Short search/snippet description (max 220 characters)"></textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Internal link suggestions</label>
+            <p class="release-manager-hint">Suggested existing posts to link from this article.</p>
+            <ul id="dashboard-link-suggestions" class="posts-list" style="margin-top: 8px;"></ul>
           </div>
 
           <div class="post-edit-actions">
@@ -325,7 +333,9 @@ document.getElementById('year').textContent = new Date().getFullYear();
 function updateThemeLabel() {
   const label = document.getElementById('theme-label');
   const mode = document.documentElement.getAttribute('data-theme') || 'light';
-  label.textContent = mode === 'dark' ? 'Dark' : 'Light';
+  if (label) {
+    label.textContent = mode === 'dark' ? 'Dark' : 'Light';
+  }
 }
 window.addEventListener('DOMContentLoaded', updateThemeLabel);
 
@@ -376,9 +386,178 @@ const categoryNameInput = document.getElementById("category-name-input");
 const saveCategoryButton = document.getElementById("save-category-btn");
 const dashboardNewCategoryButton = document.getElementById("dashboard-new-category-btn");
 const postSummaryInput = document.getElementById("post-summary");
+const dashboardLinkSuggestionsEl = document.getElementById("dashboard-link-suggestions");
 let featuredDashboardPosts = [];
 let statusHideTimer = null;
 const DEFAULT_POST_IMAGE = "/assets/default-post.svg";
+const DASHBOARD_DRAFT_PREFIX = "dashboard-post-draft-v1:";
+let dashboardDraftTimer = null;
+let dashboardDraftRestoreInProgress = false;
+
+function getDashboardDraftContextId() {
+  const postIdInput = document.getElementById("postId");
+  const id = String(postIdInput?.value || "").trim();
+  return id || "new";
+}
+
+function getDashboardDraftKey(contextId = getDashboardDraftContextId()) {
+  return `${DASHBOARD_DRAFT_PREFIX}${contextId}`;
+}
+
+function parseDashboardDraft(raw) {
+  try {
+    const parsed = JSON.parse(String(raw || ""));
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function getDashboardDraftByContext(contextId = getDashboardDraftContextId()) {
+  try {
+    const key = getDashboardDraftKey(contextId);
+    const raw = localStorage.getItem(key);
+    return parseDashboardDraft(raw);
+  } catch {
+    return null;
+  }
+}
+
+function hasDashboardDraftContent(payload) {
+  const draft = payload && typeof payload === "object" ? payload : {};
+  const hasTitle = String(draft.title || "").trim().length > 0;
+  const hasSlug = String(draft.slug || "").trim().length > 0;
+  const hasSummary = String(draft.metaDescription || "").trim().length > 0;
+  const hasCategories = Array.isArray(draft.categories) && draft.categories.length > 0;
+  const hasBlocks = Array.isArray(draft.content) && draft.content.length > 0;
+  return hasTitle || hasSlug || hasSummary || hasCategories || hasBlocks;
+}
+
+function toComparableDashboardCategories(values) {
+  return sortCategories(Array.isArray(values) ? values : []);
+}
+
+function toComparableDashboardBlocks(blocks) {
+  return JSON.stringify(Array.isArray(blocks) ? blocks : []);
+}
+
+function isDashboardDraftDifferentFromBase(draft, baseState) {
+  const base = baseState && typeof baseState === "object" ? baseState : null;
+  if (!base) return true;
+
+  const draftTitle = String(draft?.title || "").trim();
+  const baseTitle = String(base?.title || "").trim();
+  if (draftTitle !== baseTitle) return true;
+
+  const draftSlug = String(draft?.slug || "").trim();
+  const baseSlug = String(base?.slug || "").trim();
+  if (draftSlug !== baseSlug) return true;
+
+  const draftSummary = String(draft?.metaDescription || "").trim();
+  const baseSummary = String(base?.metaDescription || "").trim();
+  if (draftSummary !== baseSummary) return true;
+
+  const draftCategories = JSON.stringify(toComparableDashboardCategories(draft?.categories));
+  const baseCategories = JSON.stringify(toComparableDashboardCategories(base?.categories));
+  if (draftCategories !== baseCategories) return true;
+
+  const draftBlocks = toComparableDashboardBlocks(draft?.content);
+  const baseBlocks = toComparableDashboardBlocks(base?.content);
+  return draftBlocks !== baseBlocks;
+}
+
+function removeDashboardDraft(contextId = getDashboardDraftContextId()) {
+  try {
+    localStorage.removeItem(getDashboardDraftKey(contextId));
+  } catch {
+  }
+}
+
+async function saveDashboardDraft() {
+  if (dashboardDraftRestoreInProgress) return;
+  if (!dashboardEditOverlay || dashboardEditOverlay.hidden) return;
+
+  const postIdInput = document.getElementById("postId");
+  const titleInput = document.getElementById("title");
+  const slugInput = document.getElementById("slug");
+  if (!postIdInput || !titleInput || !slugInput) return;
+
+  let contentBlocks = [];
+  try {
+    const editorPayload = await editor.save();
+    contentBlocks = Array.isArray(editorPayload?.blocks) ? editorPayload.blocks : [];
+  } catch {
+    return;
+  }
+
+  const contextId = getDashboardDraftContextId();
+  const draft = {
+    contextId,
+    title: String(titleInput.value || ""),
+    slug: String(slugInput.value || ""),
+    metaDescription: String(postSummaryInput?.value || ""),
+    categories: Array.isArray(selectedCategories) ? [...selectedCategories] : [],
+    content: contentBlocks,
+    updatedAt: new Date().toISOString()
+  };
+
+  if (!hasDashboardDraftContent(draft)) {
+    removeDashboardDraft(contextId);
+    return;
+  }
+
+  try {
+    localStorage.setItem(getDashboardDraftKey(contextId), JSON.stringify(draft));
+  } catch {
+  }
+}
+
+function scheduleDashboardDraftAutosave(delayMs = 1200) {
+  if (dashboardDraftRestoreInProgress) return;
+  if (dashboardDraftTimer) {
+    clearTimeout(dashboardDraftTimer);
+  }
+
+  dashboardDraftTimer = setTimeout(() => {
+    dashboardDraftTimer = null;
+    saveDashboardDraft();
+  }, Math.max(350, Number(delayMs) || 1200));
+}
+
+async function maybeRestoreDashboardDraft(contextId = getDashboardDraftContextId(), baseState = null) {
+  const draft = getDashboardDraftByContext(contextId);
+  if (!draft || !hasDashboardDraftContent(draft)) return;
+  if (!isDashboardDraftDifferentFromBase(draft, baseState)) return;
+
+  const draftDate = draft.updatedAt ? new Date(draft.updatedAt) : null;
+  const draftLabel = draftDate && !Number.isNaN(draftDate.getTime())
+    ? draftDate.toLocaleString()
+    : "recent session";
+  const promptText = `Unsaved draft found (${draftLabel}). Restore it?`;
+  const shouldRestore = window.showAppConfirm
+    ? await window.showAppConfirm(promptText, {
+      title: "Restore draft",
+      confirmText: "Restore",
+      cancelText: "Cancel"
+    })
+    : window.confirm(promptText);
+  if (!shouldRestore) return;
+
+  dashboardDraftRestoreInProgress = true;
+  try {
+    document.getElementById("title").value = String(draft.title || "");
+    document.getElementById("slug").value = String(draft.slug || "");
+    if (postSummaryInput) {
+      postSummaryInput.value = String(draft.metaDescription || "");
+    }
+    setSelectedCategories(Array.isArray(draft.categories) ? draft.categories : []);
+    await editor.render({ blocks: Array.isArray(draft.content) ? draft.content : [] });
+    showStatus("Draft restored.", "success");
+  } finally {
+    dashboardDraftRestoreInProgress = false;
+  }
+}
 
 function showStatus(message, type) {
   if (!statusEl) return;
@@ -461,6 +640,7 @@ function renderSelectedCategories() {
       selectedCategories = selectedCategories.filter(category => category !== name);
       renderSelectedCategories();
       renderCategoryOptions();
+      scheduleDashboardDraftAutosave();
     });
 
     chip.appendChild(text);
@@ -474,6 +654,7 @@ function setSelectedCategories(values) {
   availableCategories = sortCategories([...availableCategories, ...selectedCategories]);
   renderSelectedCategories();
   renderCategoryOptions();
+  scheduleDashboardDraftAutosave(700);
 }
 
 function addSelectedCategory(name) {
@@ -492,6 +673,7 @@ function addSelectedCategory(name) {
 
   renderSelectedCategories();
   renderCategoryOptions();
+  scheduleDashboardDraftAutosave(700);
 }
 
 async function loadCategories() {
@@ -726,6 +908,57 @@ function generateSummaryFromBlocks(blocks) {
   return `${normalized.slice(0, 177).trimEnd()}...`;
 }
 
+function extractImageAltText(block) {
+  if (!block || block.type !== "image") return "";
+  const rawAlt = String(
+    block?.data?.alt ||
+    block?.data?.caption ||
+    block?.data?.file?.alt ||
+    ""
+  );
+  return rawAlt.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function normalizeImageAltInBlocks(blocks) {
+  const list = Array.isArray(blocks) ? blocks : [];
+  return list.map((block) => {
+    if (!block || block.type !== "image") return block;
+    const alt = extractImageAltText(block);
+    return {
+      ...block,
+      data: {
+        ...(block.data || {}),
+        alt
+      }
+    };
+  });
+}
+
+function getMissingImageAltCount(blocks) {
+  const list = Array.isArray(blocks) ? blocks : [];
+  return list
+    .filter(block => block?.type === "image")
+    .filter(block => !extractImageAltText(block))
+    .length;
+}
+
+async function confirmImageAltReminder(blocks) {
+  const missingCount = getMissingImageAltCount(blocks);
+  if (!missingCount) return true;
+
+  const noun = missingCount === 1 ? "image is" : "images are";
+  const promptText = `${missingCount} ${noun} missing alt text. Add short descriptive alt text to improve SEO and accessibility.`;
+  if (window.showAppConfirm) {
+    return window.showAppConfirm(promptText, {
+      title: "Alt-text reminder",
+      confirmText: "Publish anyway",
+      cancelText: "Review images"
+    });
+  }
+
+  return window.confirm(`${promptText} Continue publishing?`);
+}
+
 function updateCalendarUx() {
   const toggle = document.getElementById("includeInCalendar");
   const fields = document.getElementById("calendarFields");
@@ -744,6 +977,9 @@ function updateCalendarUx() {
 
 const editor = new EditorJS({
   holder: "editor",
+  onChange: () => {
+    scheduleDashboardDraftAutosave();
+  },
   tools: {
     paragraph: {
       class: Paragraph,
@@ -792,6 +1028,7 @@ async function loadPosts() {
 
   allDashboardPosts = Array.isArray(posts) ? posts : [];
   renderPostsList();
+  renderDashboardLinkSuggestions();
   renderFeaturedPostOptions();
   renderReleasePostOptions();
   renderReleaseEventsList();
@@ -957,6 +1194,68 @@ window.removeFeaturedPost = async function removeFeaturedPost(postId) {
 
 function normalizePostsSearch(value) {
   return String(value || "").toLowerCase().trim();
+}
+
+function toSuggestionTerms(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .replace(/[-_]+/g, " ")
+    .split(/\s+/)
+    .map(term => term.trim())
+    .filter(term => term.length >= 3);
+}
+
+function renderDashboardLinkSuggestions() {
+  if (!dashboardLinkSuggestionsEl) return;
+
+  const title = String(document.getElementById("title")?.value || "");
+  const slug = String(document.getElementById("slug")?.value || "");
+  const currentId = String(document.getElementById("postId")?.value || "").trim();
+  const terms = [...new Set([
+    ...toSuggestionTerms(title),
+    ...toSuggestionTerms(slug),
+    ...toSuggestionTerms((selectedCategories || []).join(" "))
+  ])];
+
+  const candidates = (Array.isArray(allDashboardPosts) ? allDashboardPosts : [])
+    .filter(post => String(post?._id || "") !== currentId)
+    .map(post => {
+      const haystack = normalizePostsSearch(`${post?.title || ""} ${post?.slug || ""} ${(post?.categories || []).join(" ")}`);
+      const score = terms.reduce((sum, term) => sum + (haystack.includes(term) ? 1 : 0), 0);
+      return { post, score };
+    })
+    .filter(item => item.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return new Date(b.post?.createdAt || 0) - new Date(a.post?.createdAt || 0);
+    })
+    .slice(0, 5);
+
+  dashboardLinkSuggestionsEl.innerHTML = "";
+
+  if (!terms.length) {
+    dashboardLinkSuggestionsEl.innerHTML = '<li style="padding: 10px 12px; color: var(--text-muted);">Start typing title/categories to get suggestions.</li>';
+    return;
+  }
+
+  if (!candidates.length) {
+    dashboardLinkSuggestionsEl.innerHTML = '<li style="padding: 10px 12px; color: var(--text-muted);">No strong matches yet.</li>';
+    return;
+  }
+
+  candidates.forEach(({ post, score }) => {
+    const li = document.createElement("li");
+    li.className = "post-item";
+    const safePostId = encodeURIComponent(post?._id || "");
+    const safeSlug = encodeURIComponent(post?.slug || "");
+    const href = `/post.html?id=${safePostId}${safeSlug ? `&slug=${safeSlug}` : ""}`;
+    li.innerHTML = `
+      <a class="post-item-title" href="${href}" target="_blank" rel="noopener">${post?.title || "Untitled"}</a>
+      <span class="release-event-date">/${post?.slug || ""} • relevance ${score}</span>
+    `;
+    dashboardLinkSuggestionsEl.appendChild(li);
+  });
 }
 
 function getPostImageUrl(post) {
@@ -1338,6 +1637,15 @@ async function editPostById(postId) {
     document.body.style.overflow = "hidden";
   }
 
+  await maybeRestoreDashboardDraft(String(post._id || ""), {
+    title: post.title,
+    slug: post.slug,
+    metaDescription: String(post.metaDescription || post.excerpt || "").trim() || generateSummaryFromBlocks(post.content || []),
+    categories: Array.isArray(post.categories) ? post.categories : [],
+    content: Array.isArray(post.content) ? post.content : []
+  });
+  renderDashboardLinkSuggestions();
+
   clearStatus();
 }
 
@@ -1354,9 +1662,23 @@ async function openCreatePostModal() {
     dashboardEditOverlay.hidden = false;
     document.body.style.overflow = "hidden";
   }
+
+  await maybeRestoreDashboardDraft("new");
+  renderDashboardLinkSuggestions();
 }
 
-async function cancelPostEdit(preserveStatus = false) {
+async function cancelPostEdit(preserveStatus = false, options = {}) {
+  const settings = options && typeof options === "object" ? options : {};
+  const discardDraft = Boolean(settings.discardDraft);
+  if (dashboardDraftTimer) {
+    clearTimeout(dashboardDraftTimer);
+    dashboardDraftTimer = null;
+  }
+  if (discardDraft) {
+    const currentContextId = getDashboardDraftContextId();
+    removeDashboardDraft(currentContextId);
+  }
+
   document.getElementById("postForm").reset();
   document.getElementById("postId").value = "";
   setSelectedCategories([]);
@@ -1419,6 +1741,13 @@ document.getElementById("postForm").addEventListener("submit", async e => {
     return;
   }
 
+  const normalizedBlocks = normalizeImageAltInBlocks(data.blocks);
+  const canPublish = await confirmImageAltReminder(normalizedBlocks);
+  if (!canPublish) {
+    showStatus("Add alt text to image blocks before publishing.", "error");
+    return;
+  }
+
   const titleValue = document.getElementById("title").value;
   const slugInput = document.getElementById("slug");
   const slugValue = toSlug(slugInput.value || titleValue);
@@ -1428,9 +1757,9 @@ document.getElementById("postForm").addEventListener("submit", async e => {
     title: titleValue,
     slug: slugValue,
     categories: selectedCategories,
-    excerpt: String(postSummaryInput?.value || "").trim() || generateSummaryFromBlocks(data.blocks),
-    metaDescription: String(postSummaryInput?.value || "").trim() || generateSummaryFromBlocks(data.blocks),
-    content: data.blocks,
+    excerpt: String(postSummaryInput?.value || "").trim() || generateSummaryFromBlocks(normalizedBlocks),
+    metaDescription: String(postSummaryInput?.value || "").trim() || generateSummaryFromBlocks(normalizedBlocks),
+    content: normalizedBlocks,
     published: true
   };
 
@@ -1438,6 +1767,9 @@ document.getElementById("postForm").addEventListener("submit", async e => {
   const url = isUpdate
     ? "/api/posts/" + document.getElementById("postId").value
     : "/api/posts";
+  const draftContextId = isUpdate
+    ? String(document.getElementById("postId").value || "").trim() || "new"
+    : "new";
 
   const res = await fetch(url, {
     method,
@@ -1446,6 +1778,7 @@ document.getElementById("postForm").addEventListener("submit", async e => {
   });
 
   if (res.ok) {
+    removeDashboardDraft(draftContextId);
     showStatus(isUpdate ? "Post updated successfully." : "Post created successfully.", "success");
     window.scrollTo({ top: 0, behavior: 'smooth' });
     await cancelPostEdit(true);
@@ -1458,10 +1791,21 @@ document.getElementById("postForm").addEventListener("submit", async e => {
 
 // Auto-generate slug from title
 document.getElementById("title").addEventListener("input", () => {
-  if (isEditing) return;
+  if (!isEditing) {
+    const slug = toSlug(document.getElementById("title").value);
+    document.getElementById("slug").value = slug;
+  }
+  renderDashboardLinkSuggestions();
+  scheduleDashboardDraftAutosave(900);
+});
 
-  const slug = toSlug(document.getElementById("title").value);
-  document.getElementById("slug").value = slug;
+document.getElementById("slug")?.addEventListener("input", () => {
+  renderDashboardLinkSuggestions();
+  scheduleDashboardDraftAutosave(900);
+});
+
+postSummaryInput?.addEventListener("input", () => {
+  scheduleDashboardDraftAutosave(900);
 });
 
 document.getElementById("categorySelect").addEventListener("change", () => {
@@ -1503,7 +1847,7 @@ featuredEditClose?.addEventListener("click", () => {
   resetFeaturedForm();
   closeFeaturedModal();
 });
-document.getElementById("cancel-post-edit-btn")?.addEventListener("click", cancelPostEdit);
+document.getElementById("cancel-post-edit-btn")?.addEventListener("click", () => cancelPostEdit(false, { discardDraft: true }));
 dashboardEditClose?.addEventListener("click", cancelPostEdit);
 
 dashboardEditOverlay?.addEventListener("click", event => {

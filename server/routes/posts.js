@@ -3,6 +3,7 @@ const Post = require("../models/Post");
 const auth = require("../middleware/auth");
 const requireUploaderOrStaff = require("../middleware/requireUploaderOrStaff");
 const User = require("../models/User");
+const SearchMiss = require("../models/SearchMiss");
 const mongoose = require("mongoose");
 const rateLimit = require("express-rate-limit");
 
@@ -223,6 +224,143 @@ function extractPostPlainText(post) {
     .join(" ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function normalizeCandidateLink(raw, origin) {
+  const value = String(raw || "")
+    .replace(/&(?:amp|lt|gt|quot|#39|nbsp|mdash|ndash);/gi, " ")
+    .replace(/[\s'"`]+$/g, "")
+    .replace(/[),.;:!?\]]+$/g, "")
+    .trim();
+  if (!value) return null;
+
+  const lower = value.toLowerCase();
+  if (lower.startsWith("#") || lower.startsWith("javascript:") || lower.startsWith("mailto:") || lower.startsWith("tel:")) {
+    return null;
+  }
+
+  if (/[<>]/.test(value) || /<\/?[a-z][^>]*>$/i.test(value)) {
+    return null;
+  }
+
+  if (/^\/(?:a|p|span|strong|em|blockquote|script|div|img|br)\b/i.test(value)) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(value, origin);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function extractLinksFromTextValue(text, origin) {
+  const links = [];
+  const value = String(text || "");
+  if (!value) return links;
+
+  const hrefRegex = /href\s*=\s*["']([^"']+)["']/gi;
+  const urlRegex = /(https?:\/\/[^\s<>")']+|(?<![A-Za-z0-9.])\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=%]+|post\.html\?[^\s<>")']+)/gi;
+
+  let match = hrefRegex.exec(value);
+  while (match) {
+    const parsed = normalizeCandidateLink(match[1], origin);
+    if (parsed) links.push(parsed.href);
+    match = hrefRegex.exec(value);
+  }
+
+  const plainValue = value
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&(?:amp|lt|gt|quot|#39|nbsp|mdash|ndash);/gi, " ")
+    .replace(/\s+/g, " ");
+
+  match = urlRegex.exec(plainValue);
+  while (match) {
+    const parsed = normalizeCandidateLink(match[1], origin);
+    if (parsed) links.push(parsed.href);
+    match = urlRegex.exec(plainValue);
+  }
+
+  return [...new Set(links)];
+}
+
+function extractLinksFromPost(post, origin) {
+  const values = [];
+  collectTextValues(post?.content || [], values);
+
+  const directValues = [];
+  (Array.isArray(post?.content) ? post.content : []).forEach((block) => {
+    const source = block?.data?.source || block?.data?.embed || block?.data?.link;
+    if (typeof source === "string" && source.trim()) {
+      directValues.push(source);
+    }
+  });
+
+  values.push(String(post?.excerpt || ""));
+  values.push(String(post?.metaDescription || ""));
+  values.push(...directValues);
+
+  const links = values.flatMap(value => extractLinksFromTextValue(value, origin));
+  return [...new Set(links)].slice(0, 60);
+}
+
+async function fetchStatusWithTimeout(url, method = "HEAD", timeoutMs = 6000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const response = await fetch(url, {
+      method,
+      redirect: "follow",
+      signal: controller.signal,
+      headers: { "user-agent": "rusman-link-checker" }
+    });
+    return { ok: response.ok, status: response.status, reason: response.ok ? "ok" : `HTTP ${response.status}` };
+  } catch {
+    return { ok: false, status: 0, reason: "request-failed" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function evaluateLink(url, context) {
+  const { origin, knownSlugs, knownIds } = context;
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { ok: false, status: 0, reason: "invalid-url", type: "unknown" };
+  }
+
+  const isInternal = parsed.origin === origin;
+  const type = isInternal ? "internal" : "outbound";
+
+  if (isInternal) {
+    if (parsed.pathname === "/post.html") {
+      const slug = String(parsed.searchParams.get("slug") || "").trim().toLowerCase();
+      const id = String(parsed.searchParams.get("id") || "").trim();
+      if (slug && knownSlugs.has(slug)) return { ok: true, status: 200, reason: "ok", type };
+      if (id && knownIds.has(id)) return { ok: true, status: 200, reason: "ok", type };
+      return { ok: false, status: 404, reason: "post-not-found", type };
+    }
+
+    const staticOk = new Set(["/", "/privacy.html", "/tos.html", "/author.html", "/post.html", "/no-access.html"]);
+    if (staticOk.has(parsed.pathname)) {
+      return { ok: true, status: 200, reason: "ok", type };
+    }
+  }
+
+  const headResult = await fetchStatusWithTimeout(url, "HEAD");
+  if (headResult.ok) return { ...headResult, type };
+
+  if (headResult.status === 405 || headResult.status === 403 || headResult.status === 0) {
+    const getResult = await fetchStatusWithTimeout(url, "GET");
+    return { ...getResult, type };
+  }
+
+  return { ...headResult, type };
 }
 
 function getAnalyticsBaseQuery(user) {
@@ -702,11 +840,22 @@ router.get("/manage/analytics", auth, requireUploaderOrStaff, async (req, res) =
     .lean();
 
   const analytics = buildAnalyticsPayload(posts);
+
+  let topAuthors = analytics.topAuthors;
+  if (user.role === "staff") {
+    const globalAuthorPosts = await Post.find({ published: true })
+      .select("title slug author categories createdAt viewCount")
+      .sort({ viewCount: -1, createdAt: -1 })
+      .lean();
+    const globalAnalytics = buildAnalyticsPayload(globalAuthorPosts);
+    topAuthors = globalAnalytics.topAuthors;
+  }
+
   return res.json({
     totals: analytics.totals,
     topPosts: analytics.topPosts,
     topCategories: analytics.topCategories,
-    topAuthors: analytics.topAuthors
+    topAuthors
   });
 });
 
@@ -740,13 +889,138 @@ router.get("/manage/analytics/authors", auth, requireUploaderOrStaff, async (req
   const user = await getCurrentUser(req);
   if (!user) return res.status(404).json({ error: "User not found" });
 
-  const posts = await Post.find(getAnalyticsBaseQuery(user))
+  const authorsQuery = user.role === "staff"
+    ? { published: true }
+    : getAnalyticsBaseQuery(user);
+
+  const posts = await Post.find(authorsQuery)
     .select("title slug author categories createdAt viewCount")
     .sort({ viewCount: -1, createdAt: -1 })
     .lean();
 
   const analytics = buildAnalyticsPayload(posts);
   return res.json({ totals: analytics.totals, items: analytics.rankedAuthors });
+});
+
+router.get(["/manage/analytics/search-misses", "/manage/analytics/search_misses"], auth, requireUploaderOrStaff, async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const rawLimit = Number(req.query?.limit);
+  const rawSinceDays = Number(req.query?.sinceDays);
+  const limit = Number.isFinite(rawLimit) ? Math.max(1, Math.min(200, Math.floor(rawLimit))) : 30;
+  const sinceDays = Number.isFinite(rawSinceDays) ? Math.max(1, Math.min(365, Math.floor(rawSinceDays))) : 30;
+  const sinceDate = new Date(Date.now() - (sinceDays * 24 * 60 * 60 * 1000));
+
+  const query = { createdAt: { $gte: sinceDate } };
+
+  const [recent, groupedRows, total] = await Promise.all([
+    SearchMiss.find(query)
+      .select("query normalizedQuery path locale createdAt")
+      .sort({ createdAt: -1 })
+      .limit(limit)
+      .lean(),
+    SearchMiss.aggregate([
+      { $match: query },
+      {
+        $group: {
+          _id: "$normalizedQuery",
+          count: { $sum: 1 },
+          lastSeenAt: { $max: "$createdAt" },
+          sampleQuery: { $first: "$query" },
+          paths: { $addToSet: "$path" }
+        }
+      },
+      { $sort: { count: -1, lastSeenAt: -1 } },
+      { $limit: limit }
+    ]),
+    SearchMiss.countDocuments(query)
+  ]);
+
+  const topMissingQueries = groupedRows.map((row, index) => ({
+    rank: index + 1,
+    query: String(row?.sampleQuery || row?._id || "").trim(),
+    normalizedQuery: String(row?._id || "").trim(),
+    misses: Number(row?.count || 0),
+    lastSeenAt: row?.lastSeenAt || null,
+    paths: Array.isArray(row?.paths) ? row.paths.slice(0, 5) : []
+  }));
+
+  return res.json({
+    filters: { limit, sinceDays },
+    retentionDays: Number(process.env.SEARCH_ANALYTICS_RETENTION_DAYS || 120),
+    total,
+    topMissingQueries,
+    recent: Array.isArray(recent) ? recent : []
+  });
+});
+
+router.get(["/manage/analytics/link-health", "/manage/analytics/link_health"], auth, requireUploaderOrStaff, async (req, res) => {
+  const user = await getCurrentUser(req);
+  if (!user) return res.status(404).json({ error: "User not found" });
+
+  const baseQuery = getAnalyticsBaseQuery(user);
+  const posts = await Post.find(baseQuery)
+    .select("_id title slug excerpt metaDescription content createdAt")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const origin = `${req.protocol}://${req.get("host")}`;
+  const knownSlugs = new Set(posts.map(post => String(post?.slug || "").trim().toLowerCase()).filter(Boolean));
+  const knownIds = new Set(posts.map(post => String(post?._id || "").trim()).filter(Boolean));
+
+  const linkRefs = [];
+  posts.forEach((post) => {
+    const links = extractLinksFromPost(post, origin);
+    links.forEach((url) => {
+      linkRefs.push({
+        postId: String(post?._id || ""),
+        title: String(post?.title || "Untitled"),
+        slug: String(post?.slug || ""),
+        url
+      });
+    });
+  });
+
+  const uniqueLinks = [...new Set(linkRefs.map(item => item.url))].slice(0, 140);
+  const resultsMap = new Map();
+
+  for (const url of uniqueLinks) {
+    const result = await evaluateLink(url, { origin, knownSlugs, knownIds });
+    resultsMap.set(url, result);
+  }
+
+  const broken = linkRefs
+    .map((ref) => {
+      const check = resultsMap.get(ref.url);
+      if (!check || check.ok) return null;
+      return {
+        postId: ref.postId,
+        title: ref.title,
+        slug: ref.slug,
+        url: ref.url,
+        type: check.type,
+        status: Number(check.status || 0),
+        reason: check.reason
+      };
+    })
+    .filter(Boolean);
+
+  const internalBroken = broken.filter(item => item.type === "internal").length;
+  const outboundBroken = broken.filter(item => item.type === "outbound").length;
+
+  return res.json({
+    checkedAt: new Date().toISOString(),
+    totals: {
+      posts: posts.length,
+      linksDiscovered: linkRefs.length,
+      uniqueLinksChecked: uniqueLinks.length,
+      broken: broken.length,
+      internalBroken,
+      outboundBroken
+    },
+    broken: broken.slice(0, 300)
+  });
 });
 
 // Get single post by slug

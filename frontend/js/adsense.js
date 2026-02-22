@@ -60,9 +60,19 @@
     return false;
   }
 
+  function isLocalDevelopmentHost() {
+    const host = String(window.location.hostname || "").toLowerCase();
+    return host === "localhost" || host === "127.0.0.1" || host === "::1";
+  }
+
   async function initializeAds() {
     const adNodes = applySlotAttributes();
     if (!adNodes.length) {
+      setAdBlocksVisible(false);
+      return;
+    }
+
+    if (isLocalDevelopmentHost()) {
       setAdBlocksVisible(false);
       return;
     }
@@ -101,6 +111,24 @@
     }
   }
 
-  document.addEventListener("DOMContentLoaded", initializeAds);
-  window.addEventListener("cookiePreferencesChanged", initializeAds);
+  function scheduleAdsInitialization() {
+    const run = () => {
+      if ("requestIdleCallback" in window) {
+        window.requestIdleCallback(() => initializeAds(), { timeout: 2500 });
+        return;
+      }
+
+      window.setTimeout(() => initializeAds(), 180);
+    };
+
+    if (document.readyState === "complete") {
+      run();
+      return;
+    }
+
+    window.addEventListener("load", run, { once: true });
+  }
+
+  document.addEventListener("DOMContentLoaded", scheduleAdsInitialization);
+  window.addEventListener("cookiePreferencesChanged", scheduleAdsInitialization);
 })();

@@ -24,14 +24,21 @@ This repository contains a full-stack blog platform with public content, user ac
 
 ### Staff/Admin users
 - Access admin pages (`dashboard`, `posts`, `events`, `categories`, `staff`, `profile`)
+- Access Core Web Vitals page (`/admin/vitals.html`) from navbar (staff/admin visibility)
 - Create/edit/delete posts (staff ownership rules apply for post edit/delete)
 - Upload images for content
 - Manage release calendar events
+- Use Broken-link Checker page (`/admin/analytics-links.html`) to scan internal/outbound links
 - Manage featured posts from admin dashboard (admin only, max 6 with automatic rollover)
 - Manage categories:
   - create: admin + staff
   - delete: admin can delete any, staff can delete only categories created by their own account
   - edit/rename: disabled
+- Manage newsletter subscribers from admin page (`/admin/newsletter.html`):
+  - view total/loaded subscribers
+  - search by email
+  - remove subscriber with shared delete confirmation popup
+  - copy/export current filtered list
 - Manage staff access list (current backend permission allows both admin and staff)
 - Use a shared confirmation modal before destructive delete actions
 - See admin status messages auto-dismiss after 5 seconds
@@ -60,6 +67,14 @@ This repository contains a full-stack blog platform with public content, user ac
 - Admin dashboard calendar panel shows latest 10 events.
 - In dashboard event creation, posts that already have calendar assignment are hidden from the dropdown (except when editing that event).
 - Unknown non-API routes return the custom frontend 404 page, while unknown API routes return JSON 404.
+- Newsletter subscriptions are captured from footer form on home/post flows and upserted by email (no duplicates).
+- Mobile footer places newsletter above the rest of footer content; desktop keeps balanced three-column layout.
+- Profile page “Profile Links” section uses a 3x2 desktop grid (3 links on first row, 3 on second) and stacks to one column on mobile.
+- Staff/admin navbar now exposes a Vitals link across admin and public/shared pages where staff links appear.
+- Vitals page includes quick improvement guide + metric glossary + standard footer.
+- Comment timestamps on post pages include hour and minute (not only date).
+- YouTube embeds use `youtube-nocookie` mode and AdSense is skipped on localhost/dev to reduce non-actionable console warnings.
+- Analytics endpoints for link checker/search misses support both hyphen and underscore path variants.
 
 ---
 
@@ -176,6 +191,15 @@ If no ads appear immediately, this is normal while account/site/ad-unit propagat
   - `GET /api/posts/manage/analytics/posts` (full ranked posts)
   - `GET /api/posts/manage/analytics/categories` (full ranked categories)
   - `GET /api/posts/manage/analytics/authors` (full ranked authors)
+  - `GET /api/posts/manage/analytics/search-misses` and `GET /api/posts/manage/analytics/search_misses`
+  - `GET /api/posts/manage/analytics/link-health` and `GET /api/posts/manage/analytics/link_health`
+- Metrics:
+  - `POST /api/metrics/web-vitals`
+  - `GET /api/metrics/web-vitals` (staff/admin)
+- Newsletter:
+  - `POST /api/newsletter/subscribe`
+  - `GET /api/newsletter/subscribers` (staff/admin)
+  - `DELETE /api/newsletter/subscribers` (staff/admin, body: `email`)
 - Featured management (admin only):
   - `GET /api/posts/manage/featured`
   - `POST /api/posts/manage/featured` (body: `postId`)

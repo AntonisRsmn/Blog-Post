@@ -17,6 +17,8 @@ const releaseRoutes = require("./routes/releases");
 const uploadRoutes = require("./routes/upload");
 const commentRoutes = require("./routes/comments");
 const staffRoutes = require("./routes/staff");
+const metricsRoutes = require("./routes/metrics");
+const newsletterRoutes = require("./routes/newsletter");
 
 const app = express();
 
@@ -102,6 +104,8 @@ app.use("/api/releases", releaseRoutes);
 app.use("/api/upload", uploadRoutes);
 app.use("/api/comments", commentRoutes);
 app.use("/api/staff", staffRoutes);
+app.use("/api/metrics", metricsRoutes);
+app.use("/api/newsletter", newsletterRoutes);
 
 app.get("/sitemap.xml", async (req, res) => {
   const host = req.get("host");
@@ -216,6 +220,10 @@ app.use(express.static(frontendPath, {
 
 app.get("/", (req, res) => {
   res.sendFile(path.join(frontendPath, "index.html"));
+});
+
+app.get("/favicon.ico", (req, res) => {
+  res.status(204).end();
 });
 
 app.use((req, res, next) => {

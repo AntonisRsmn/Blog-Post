@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Analytics - Missing Searches</title>
+  <link rel="stylesheet" href="../css/global.css" />
+  <link rel="stylesheet" href="../css/admin.css" />
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <a href="/" class="logo">Rusman</a>
+    <button type="button" id="mobile-menu-toggle" class="mobile-menu-toggle" aria-label="Open menu" aria-controls="mobile-sidebar" aria-expanded="false">☰</button>
+    <nav>
+      <a href="/" class="nav-link">Home</a>
+      <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+      <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+      <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
+      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+      <a href="/admin/profile.html" class="nav-link" data-auth-link>Profile</a>
+      <button id="theme-toggle"></button>
+    </nav>
+  </div>
+</header>
+
+<div id="mobile-sidebar-backdrop" class="mobile-sidebar-backdrop" hidden></div>
+<aside id="mobile-sidebar" class="mobile-sidebar" aria-label="Mobile navigation" aria-hidden="true">
+  <div class="mobile-sidebar-head">
+    <strong>Menu</strong>
+    <button type="button" id="mobile-sidebar-close" class="mobile-sidebar-close" aria-label="Close menu">✕</button>
+  </div>
+  <nav class="mobile-sidebar-nav">
+    <a href="/" class="nav-link">Home</a>
+    <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+    <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+    <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
+    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+    <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
+    <div class="mobile-theme-row">
+      <span>Theme</span>
+      <button type="button" id="mobile-theme-toggle" class="mobile-theme-switch" aria-label="Toggle theme"></button>
+    </div>
+  </nav>
+</aside>
+
+<main>
+  <div class="admin-container">
+    <div class="admin-page-head">
+      <h1 class="admin-title">Missing Searches</h1>
+      <p class="admin-subtitle">See what readers search for but don’t find, so you can plan next posts.</p>
+    </div>
+
+    <div id="status" class="admin-status" role="status" aria-live="polite"></div>
+
+    <div class="admin-section" style="margin-bottom: 16px;">
+      <div class="latest-posts-head">
+        <div class="latest-posts-head-copy">
+          <h2>Overview</h2>
+          <p class="release-manager-hint"><a href="/admin/analytics.html">← Back to analytics dashboard</a></p>
+        </div>
+      </div>
+      <div id="search-miss-totals" class="analytics-overview-grid"></div>
+    </div>
+
+    <div class="admin-side-grid analytics-grid">
+      <div class="admin-section">
+        <div class="latest-posts-head">
+          <div class="latest-posts-head-copy">
+            <h2>Top Missing Queries</h2>
+            <p class="release-manager-hint">Most frequent zero-result searches in the selected window.</p>
+          </div>
+        </div>
+
+        <div class="posts-search-wrap">
+          <input id="search-miss-query" type="text" placeholder="Filter queries..." />
+        </div>
+
+        <ul id="search-miss-top-list" class="posts-list analytics-list"></ul>
+      </div>
+
+      <div class="admin-section">
+        <div class="latest-posts-head">
+          <div class="latest-posts-head-copy">
+            <h2>Recent Misses</h2>
+            <p class="release-manager-hint">Latest raw search events with path and timestamp.</p>
+          </div>
+        </div>
+
+        <ul id="search-miss-recent-list" class="posts-list analytics-list"></ul>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div class="footer-left">
+      <div class="brand-small">Antonios <span style="color:var(--accent)">Rusman</span></div>
+      <div class="muted small">© <span id="year"></span> <a href="https://rusman.gr" target="_blank" rel="noopener">Antonios Rusman</a> — All rights reserved.</div>
+    </div>
+    <div class="footer-center">
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <a href="/tos.html">Terms of Service</a>
+        <a href="/privacy.html">Privacy Policy</a>
+      </nav>
+    </div>
+  </div>
+</footer>
+
+<script src="../js/theme.js"></script>
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+
+const topListEl = document.getElementById("search-miss-top-list");
+const recentListEl = document.getElementById("search-miss-recent-list");
+const searchEl = document.getElementById("search-miss-query");
+const totalsEl = document.getElementById("search-miss-totals");
+
+let topItems = [];
+let recentItems = [];
+const SEARCH_MISS_STORAGE_KEY = 'search-miss-events-v1';
+
+function showStatus(message, type = "") {
+  const statusEl = document.getElementById("status");
+  if (!statusEl) return;
+  statusEl.textContent = message;
+  statusEl.classList.remove("success", "error", "deleted", "show");
+  if (type) statusEl.classList.add(type);
+  statusEl.classList.add("show");
+}
+
+function normalizeSearch(value) {
+  return String(value || "").toLowerCase().trim();
+}
+
+function renderRankLabel(rank) {
+  const value = Number(rank || 0);
+  if (!Number.isFinite(value) || value < 1) return "-";
+  return `${value}.`;
+}
+
+function formatDate(value) {
+  const date = new Date(value || "");
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleString();
+}
+
+function loadLocalSearchMissPayload(limit = 100, sinceDays = 30) {
+  try {
+    const raw = localStorage.getItem(SEARCH_MISS_STORAGE_KEY);
+    const events = JSON.parse(String(raw || '[]'));
+    const items = Array.isArray(events) ? events : [];
+    const sinceMs = Date.now() - (Math.max(1, Number(sinceDays) || 30) * 24 * 60 * 60 * 1000);
+
+    const recent = items
+      .filter(item => new Date(item?.createdAt || 0).getTime() >= sinceMs)
+      .map(item => ({
+        query: String(item?.query || item?.normalizedQuery || '').trim(),
+        normalizedQuery: String(item?.normalizedQuery || item?.query || '').trim(),
+        path: String(item?.path || '/').trim() || '/',
+        createdAt: item?.createdAt || null
+      }))
+      .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+    const group = new Map();
+    recent.forEach((item) => {
+      const key = String(item.normalizedQuery || item.query || '').trim();
+      if (!key) return;
+      const existing = group.get(key) || {
+        query: item.query || key,
+        normalizedQuery: key,
+        misses: 0,
+        lastSeenAt: null,
+        paths: new Set()
+      };
+      existing.misses += 1;
+      const createdAtMs = new Date(item.createdAt || 0).getTime();
+      const prevMs = new Date(existing.lastSeenAt || 0).getTime();
+      if (!existing.lastSeenAt || createdAtMs > prevMs) {
+        existing.lastSeenAt = item.createdAt || null;
+      }
+      existing.paths.add(item.path || '/');
+      group.set(key, existing);
+    });
+
+    const topMissingQueries = [...group.values()]
+      .sort((a, b) => {
+        if (b.misses !== a.misses) return b.misses - a.misses;
+        return new Date(b.lastSeenAt || 0) - new Date(a.lastSeenAt || 0);
+      })
+      .slice(0, limit)
+      .map((item, index) => ({
+        rank: index + 1,
+        query: item.query,
+        normalizedQuery: item.normalizedQuery,
+        misses: item.misses,
+        lastSeenAt: item.lastSeenAt,
+        paths: [...item.paths].slice(0, 5)
+      }));
+
+    return {
+      filters: { limit, sinceDays },
+      retentionDays: 0,
+      total: recent.length,
+      topMissingQueries,
+      recent: recent.slice(0, limit)
+    };
+  } catch {
+    return {
+      filters: { limit, sinceDays },
+      retentionDays: 0,
+      total: 0,
+      topMissingQueries: [],
+      recent: []
+    };
+  }
+}
+
+function renderTopList() {
+  if (!topListEl) return;
+
+  const query = normalizeSearch(searchEl?.value);
+  const filtered = !query
+    ? topItems
+    : topItems.filter(item => normalizeSearch(item?.query || item?.normalizedQuery).includes(query));
+
+  topListEl.innerHTML = "";
+
+  if (!filtered.length) {
+    topListEl.innerHTML = '<li class="post-item"><span class="release-event-date">No missing search queries in this window.</span></li>';
+    return;
+  }
+
+  filtered.forEach(item => {
+    const li = document.createElement("li");
+    li.className = "post-item";
+
+    const rank = document.createElement("span");
+    rank.className = "analytics-rank";
+    rank.textContent = renderRankLabel(item?.rank);
+
+    const title = document.createElement("span");
+    title.className = "post-item-title analytics-item-title";
+    title.textContent = String(item?.query || item?.normalizedQuery || "").trim() || "(empty)";
+
+    const meta = document.createElement("span");
+    meta.className = "release-event-date analytics-item-meta";
+    meta.textContent = `${Number(item?.misses || 0).toLocaleString()} misses • Last seen ${formatDate(item?.lastSeenAt)}`;
+
+    li.appendChild(rank);
+    li.appendChild(title);
+    li.appendChild(meta);
+
+    topListEl.appendChild(li);
+  });
+}
+
+function renderRecentList() {
+  if (!recentListEl) return;
+  recentListEl.innerHTML = "";
+
+  if (!recentItems.length) {
+    recentListEl.innerHTML = '<li class="post-item"><span class="release-event-date">No recent events yet.</span></li>';
+    return;
+  }
+
+  recentItems.forEach(item => {
+    const li = document.createElement("li");
+    li.className = "post-item";
+
+    const title = document.createElement("span");
+    title.className = "post-item-title analytics-item-title";
+    title.textContent = String(item?.query || item?.normalizedQuery || "").trim() || "(empty)";
+
+    const path = String(item?.path || "").trim() || "/";
+    const meta = document.createElement("span");
+    meta.className = "release-event-date analytics-item-meta";
+    meta.textContent = `${path} • ${formatDate(item?.createdAt)}`;
+
+    li.appendChild(title);
+    li.appendChild(meta);
+    recentListEl.appendChild(li);
+  });
+}
+
+async function initializePage() {
+  try {
+    const response = await fetch('/api/posts/manage/analytics/search_misses?limit=100&sinceDays=30', {
+      credentials: 'same-origin'
+    });
+    let payload;
+
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => ({}));
+      const apiMessage = String(errorPayload?.error || '').trim();
+      if (response.status === 404) {
+        payload = loadLocalSearchMissPayload(100, 30);
+        showStatus('Using local fallback search analytics. Restart server to enable shared database analytics.', 'error');
+      } else {
+        const fallback = response.status === 401 || response.status === 403
+          ? 'Staff access required for search analytics.'
+          : 'Could not load search analytics.';
+        showStatus(`${fallback}${apiMessage ? ` (${apiMessage})` : ''}`, 'error');
+        return;
+      }
+    } else {
+      payload = await response.json().catch(() => ({}));
+    }
+
+    topItems = Array.isArray(payload?.topMissingQueries) ? payload.topMissingQueries : [];
+    recentItems = Array.isArray(payload?.recent) ? payload.recent.slice(0, 80) : [];
+
+    if (totalsEl) {
+      totalsEl.innerHTML = `
+        <div class="post-item analytics-total-card">
+          <div class="release-event-date">Total Miss Events (30d)</div>
+          <div class="post-item-title analytics-total-value">${Number(payload?.total || 0).toLocaleString()}</div>
+        </div>
+        <div class="post-item analytics-total-card">
+          <div class="release-event-date">Unique Missing Queries</div>
+          <div class="post-item-title analytics-total-value">${topItems.length.toLocaleString()}</div>
+        </div>
+        <div class="post-item analytics-total-card">
+          <div class="release-event-date">Retention</div>
+          <div class="post-item-title analytics-total-value">${Number(payload?.retentionDays || 120)} days</div>
+        </div>
+      `;
+    }
+
+    renderTopList();
+    renderRecentList();
+    showStatus('Search analytics loaded.', 'success');
+
+    setTimeout(() => {
+      const statusEl = document.getElementById('status');
+      if (!statusEl) return;
+      statusEl.classList.remove('show', 'success', 'error', 'deleted');
+      statusEl.textContent = '';
+    }, 3000);
+  } catch {
+    showStatus('Could not reach the server.', 'error');
+  }
+}
+
+searchEl?.addEventListener('input', renderTopList);
+initializePage();
+</script>
+
+</body>
+</html>

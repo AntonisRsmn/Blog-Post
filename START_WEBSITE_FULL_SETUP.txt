@@ -155,6 +155,13 @@ After deploy, verify:
 - In dashboard "New Event", posts already assigned to calendar are hidden from the selector
 - Analytics dashboard shows Top 10 posts/categories/authors with rank numbers
 - Analytics "Show all" pages work and search keeps original rank numbers
+- Broken-link Checker page works (/admin/analytics-links.html)
+- Core Web Vitals page works (/admin/vitals.html)
+- Newsletter subscription from footer works on homepage/post page
+- Newsletter admin list works (/admin/newsletter.html): search + remove subscriber + CSV/copy
+- Profile page links section shows 3 links on first row and 3 on second row (desktop), and stacks on mobile
+- Staff/Admin navbar shows Vitals link across admin and shared/public pages where staff links exist
+- Post comments show date + hour:minute timestamp
 
 --------------------------------------------------
 10) QUICK HEALTH TESTS
@@ -166,9 +173,17 @@ In browser:
 - /api/posts/manage/analytics/posts
 - /api/posts/manage/analytics/categories
 - /api/posts/manage/analytics/authors
+- /api/posts/manage/analytics/search-misses
+- /api/posts/manage/analytics/link-health
+- /api/metrics/web-vitals
+- /api/newsletter/subscribe
+- /api/newsletter/subscribers
 - /admin/analytics-posts.html
 - /admin/analytics-categories.html
 - /admin/analytics-authors.html
+- /admin/analytics-links.html
+- /admin/vitals.html
+- /admin/newsletter.html
 - /this-page-does-not-exist (should show custom frontend 404 page)
 - /api/unknown (should return JSON 404)
 

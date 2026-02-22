@@ -17,6 +17,7 @@
       <a href="/" class="nav-link">Home</a>
       <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
       <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+      <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
       <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
       <a href="/admin/profile.html" class="nav-link" data-auth-link>Profile</a>
       <button id="theme-toggle"></button>
@@ -34,6 +35,7 @@
     <a href="/" class="nav-link">Home</a>
     <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
     <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+    <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
     <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
     <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
     <div class="mobile-theme-row">
@@ -47,7 +49,7 @@
   <div class="admin-container">
     <div class="admin-page-head">
       <h1 class="admin-title">Analytics Dashboard</h1>
-      <p class="admin-subtitle">Track post performance with views, top posts, categories, and authors.</p>
+      <p class="admin-subtitle">Track post performance and discover what readers search but can’t find yet.</p>
     </div>
 
     <div id="status" class="admin-status" role="status" aria-live="polite"></div>
@@ -99,6 +101,55 @@
       <div class="admin-section">
         <div class="latest-posts-head">
           <div class="latest-posts-head-copy">
+            <h2>Missing Searches</h2>
+            <p class="release-manager-hint">Top 10 searches with zero results (last 30 days).</p>
+          </div>
+          <a href="/admin/analytics-searches.html" class="admin-link-btn">Show all</a>
+        </div>
+        <ul id="analytics-missing-searches" class="posts-list analytics-list"></ul>
+      </div>
+
+      <div class="admin-section">
+        <div class="latest-posts-head">
+          <div class="latest-posts-head-copy">
+            <h2>Broken-link Checker</h2>
+            <p class="release-manager-hint">Crawl your post links and find dead internal/outbound URLs.</p>
+          </div>
+          <a href="/admin/analytics-links.html" class="admin-link-btn">Open checker</a>
+        </div>
+        <ul class="posts-list analytics-list analytics-guide-list">
+          <li class="post-item"><span class="post-item-title">Internal links</span><span class="release-event-date">Validates links to your own content and routes.</span></li>
+          <li class="post-item"><span class="post-item-title">Outbound links</span><span class="release-event-date">Flags external URLs returning errors/timeouts.</span></li>
+        </ul>
+      </div>
+
+      <div class="admin-section">
+        <div class="latest-posts-head">
+          <div class="latest-posts-head-copy">
+            <h2>Hero A/B Test</h2>
+            <p class="release-manager-hint">CTR comparison for homepage top featured block (last 30 days).</p>
+          </div>
+        </div>
+        <ul id="analytics-ab-hero" class="posts-list analytics-list"></ul>
+      </div>
+
+      <div class="admin-section">
+        <div class="latest-posts-head">
+          <div class="latest-posts-head-copy">
+            <h2>Newsletter List</h2>
+            <p class="release-manager-hint">Captured emails from footer subscription form.</p>
+          </div>
+          <a href="/admin/newsletter.html" class="admin-link-btn">Open list</a>
+        </div>
+        <ul class="posts-list analytics-list analytics-guide-list">
+          <li class="post-item"><span class="post-item-title">Copy Emails</span><span class="release-event-date">Quickly copy all subscriber emails to clipboard.</span></li>
+          <li class="post-item"><span class="post-item-title">Export CSV</span><span class="release-event-date">Download full list for campaigns/tools.</span></li>
+        </ul>
+      </div>
+
+      <div class="admin-section">
+        <div class="latest-posts-head">
+          <div class="latest-posts-head-copy">
             <h2>How to read this</h2>
             <p class="release-manager-hint">Quick interpretation guide.</p>
           </div>
@@ -107,6 +158,7 @@
           <li class="post-item"><span class="post-item-title">Published Posts</span><span class="release-event-date">Total visible posts included in analytics.</span></li>
           <li class="post-item"><span class="post-item-title">Total Views</span><span class="release-event-date">Increments when a reader opens a post page.</span></li>
           <li class="post-item"><span class="post-item-title">Top 10 Lists</span><span class="release-event-date">Sorted descending by tracked views with fixed rank numbers.</span></li>
+          <li class="post-item"><span class="post-item-title">Missing Searches</span><span class="release-event-date">Queries with no matching posts — ideal ideas for next articles.</span></li>
         </ul>
       </div>
     </div>
@@ -200,15 +252,52 @@ function renderRankLabel(rank) {
   return `${value}.`;
 }
 
+function loadLocalSearchMissPreview(limit = 10, sinceDays = 30) {
+  try {
+    const raw = localStorage.getItem('search-miss-events-v1');
+    const items = JSON.parse(String(raw || '[]'));
+    const rows = Array.isArray(items) ? items : [];
+    const sinceMs = Date.now() - (Math.max(1, Number(sinceDays) || 30) * 24 * 60 * 60 * 1000);
+
+    const grouped = new Map();
+    rows.forEach((item) => {
+      const createdAt = new Date(item?.createdAt || 0).getTime();
+      if (!Number.isFinite(createdAt) || createdAt < sinceMs) return;
+
+      const key = String(item?.normalizedQuery || item?.query || '').trim().toLowerCase();
+      if (!key) return;
+      const existing = grouped.get(key) || { query: String(item?.query || key), misses: 0, lastSeenAt: 0 };
+      existing.misses += 1;
+      existing.lastSeenAt = Math.max(existing.lastSeenAt || 0, createdAt);
+      grouped.set(key, existing);
+    });
+
+    return [...grouped.values()]
+      .sort((a, b) => (b.misses - a.misses) || (b.lastSeenAt - a.lastSeenAt))
+      .slice(0, limit)
+      .map((item, index) => ({ rank: index + 1, query: item.query, misses: item.misses }));
+  } catch {
+    return [];
+  }
+}
+
 async function loadAnalyticsPage() {
   try {
-    const response = await fetch("/api/posts/manage/analytics");
-    if (!response.ok) {
+    const [contentRes, searchRes] = await Promise.all([
+      fetch("/api/posts/manage/analytics", { credentials: "same-origin" }),
+      fetch("/api/posts/manage/analytics/search_misses?limit=10&sinceDays=30", { credentials: "same-origin" })
+    ]);
+    const abRes = await fetch("/api/metrics/ab-home-hero?sinceDays=30", { credentials: "same-origin" });
+
+    if (!contentRes.ok) {
       showStatus("Could not load analytics data.", "error");
       return;
     }
 
-    const payload = await response.json().catch(() => ({}));
+    const payload = await contentRes.json().catch(() => ({}));
+    const searchPayload = searchRes.ok
+      ? await searchRes.json().catch(() => ({}))
+      : { topMissingQueries: loadLocalSearchMissPreview(10, 30) };
     const totals = payload?.totals || {};
     const totalsBox = document.getElementById("analytics-totals");
 
@@ -247,6 +336,30 @@ async function loadAnalyticsPage() {
       <span class="post-item-title analytics-item-title">${item?.name || "Unknown"}</span>
       <span class="release-event-date analytics-item-meta">${Number(item?.views || 0).toLocaleString()} views</span>
     `);
+
+    renderList("analytics-missing-searches", searchPayload?.topMissingQueries, item => {
+      const query = String(item?.query || item?.normalizedQuery || "").trim() || "(empty)";
+      return `
+        <span class="analytics-rank">${renderRankLabel(item?.rank)}</span>
+        <span class="post-item-title analytics-item-title">${query}</span>
+        <span class="release-event-date analytics-item-meta">${Number(item?.misses || 0).toLocaleString()} misses</span>
+      `;
+    });
+
+    const abPayload = abRes.ok ? await abRes.json().catch(() => ({})) : {};
+    const variants = Array.isArray(abPayload?.variants) ? abPayload.variants : [];
+    renderList("analytics-ab-hero", variants, item => {
+      const variant = String(item?.variant || "-");
+      const impressions = Number(item?.impressions || 0).toLocaleString();
+      const clicks = Number(item?.clicks || 0).toLocaleString();
+      const ctr = Number(item?.ctr || 0).toFixed(2);
+      const winner = String(abPayload?.winner || "").toUpperCase() === variant ? " • WINNER" : "";
+      return `
+        <span class="analytics-rank">${variant}</span>
+        <span class="post-item-title analytics-item-title">Variant ${variant}${winner}</span>
+        <span class="release-event-date analytics-item-meta">${impressions} impressions • ${clicks} clicks • ${ctr}% CTR</span>
+      `;
+    });
 
     showStatus("Analytics loaded.", "success");
     setTimeout(() => {

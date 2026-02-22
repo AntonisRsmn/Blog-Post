@@ -6,7 +6,15 @@ const CommentSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     authorName: { type: String, required: true },
     authorAvatar: { type: String, default: "" },
-    text: { type: String, required: true }
+    text: { type: String, required: true },
+    reactions: {
+      like: { type: Number, default: 0 },
+      helpful: { type: Number, default: 0 },
+      funny: { type: Number, default: 0 }
+    },
+    reactionUsers: { type: Map, of: String, default: {} },
+    spamScore: { type: Number, default: 0 },
+    spamFlags: { type: [String], default: [] }
   },
   { timestamps: true }
 );

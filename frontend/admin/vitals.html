@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Vitals | Admin</title>
+  <link rel="stylesheet" href="../css/global.css" />
+  <link rel="stylesheet" href="../css/admin.css" />
+  <style>
+    .vitals-shell {
+      display: grid;
+      gap: 14px;
+    }
+
+    .vitals-controls-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .vitals-controls-head h2 {
+      margin: 0;
+      font-size: 1.06rem;
+      color: var(--text);
+    }
+
+    .vitals-controls-head p {
+      margin: 4px 0 0;
+      color: var(--text-muted);
+      font-size: 0.88rem;
+    }
+
+    .vitals-controls {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 0;
+    }
+
+    .vitals-controls .form-group {
+      margin-bottom: 0;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-secondary);
+    }
+
+    .vitals-controls .form-group label {
+      margin-bottom: 7px;
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .vitals-controls .form-group input,
+    .vitals-controls .form-group select {
+      width: 100%;
+      background: var(--surface);
+    }
+
+    .vitals-summary {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 0;
+    }
+
+    .vitals-health {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--bg-secondary);
+    }
+
+    .vitals-health strong {
+      color: var(--text);
+    }
+
+    .vitals-health p {
+      margin: 4px 0 0;
+      color: var(--text-muted);
+      font-size: 0.84rem;
+    }
+
+    .vitals-health-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: capitalize;
+      color: var(--text-secondary);
+      background: var(--surface);
+    }
+
+    .vitals-health-badge.good {
+      border-color: #0ea5a3;
+      color: #0ea5a3;
+    }
+
+    .vitals-health-badge.watch {
+      border-color: #eab308;
+      color: #eab308;
+    }
+
+    .vitals-health-badge.action {
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+
+    .vitals-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-secondary);
+      padding: 12px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .vitals-card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 2px;
+      background: var(--accent);
+      opacity: 0.5;
+    }
+
+    .vitals-card strong {
+      display: block;
+      font-size: 1rem;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    .vitals-card small {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+
+    .vitals-path-summary {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    .vitals-path-summary-head {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      font-size: 0.82rem;
+    }
+
+    .vitals-path-summary-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+
+    .vitals-path-summary-list li {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+    }
+
+    .vitals-path-summary-list li:last-child {
+      border-bottom: none;
+    }
+
+    .vitals-path-summary-list strong {
+      color: var(--text);
+      font-size: 0.88rem;
+    }
+
+    .vitals-path-summary-list small {
+      display: block;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      margin-top: 2px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 560px;
+    }
+
+    .vitals-retention {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.82rem;
+    }
+
+    .vitals-table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .vitals-table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 860px;
+    }
+
+    .vitals-table th,
+    .vitals-table td {
+      text-align: left;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+      vertical-align: top;
+    }
+
+    .vitals-table th {
+      color: var(--text);
+      background: var(--bg-secondary);
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .vitals-table td {
+      color: var(--text-secondary);
+    }
+
+    .vitals-table tbody tr:hover {
+      background: var(--bg-secondary);
+    }
+
+    .vitals-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .vitals-path {
+      max-width: 340px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: inline-block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.83rem;
+    }
+
+    .vitals-rating {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 2px 8px;
+      border: 1px solid var(--border);
+      font-size: 0.8rem;
+      text-transform: capitalize;
+      background: var(--bg-secondary);
+      color: var(--text-secondary);
+    }
+
+    .vitals-rating.good {
+      border-color: #0ea5a3;
+      color: #0ea5a3;
+    }
+
+    .vitals-rating.needs-improvement {
+      border-color: #eab308;
+      color: #eab308;
+    }
+
+    .vitals-rating.poor {
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+
+    .vitals-table td:last-child {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.79rem;
+      color: var(--text-muted);
+    }
+
+    .vitals-empty {
+      margin: 0;
+      padding: 12px;
+      border-radius: var(--radius);
+      border: 1px dashed var(--border);
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+    }
+
+    .vitals-quick-guide {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-secondary);
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .vitals-quick-guide h3 {
+      margin: 0;
+      color: var(--text);
+      font-size: 1rem;
+    }
+
+    .vitals-quick-guide p {
+      margin: 0;
+      color: var(--text-muted);
+      font-size: 0.86rem;
+      line-height: 1.45;
+    }
+
+    .vitals-guide-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .vitals-guide-card {
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      padding: 10px;
+      display: grid;
+      gap: 6px;
+    }
+
+    .vitals-guide-card strong {
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+
+    .vitals-guide-card small {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+
+    .vitals-guide-list {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      display: grid;
+      gap: 6px;
+    }
+
+    .vitals-guide-list li::marker {
+      color: var(--accent);
+    }
+
+    .vitals-terms {
+      border-top: 1px dashed var(--border);
+      padding-top: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .vitals-terms h4 {
+      margin: 0;
+      color: var(--text);
+      font-size: 0.92rem;
+    }
+
+    .vitals-terms-list {
+      margin: 0;
+      padding-left: 18px;
+      color: var(--text-secondary);
+      font-size: 0.84rem;
+      display: grid;
+      gap: 6px;
+      line-height: 1.45;
+    }
+
+    .admin-status.info {
+      background: var(--bg-secondary);
+      border: 1px solid var(--border);
+      color: var(--text-secondary);
+    }
+
+    @media (max-width: 960px) {
+      .vitals-controls {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .vitals-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .vitals-guide-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
+      .vitals-controls-head {
+        flex-direction: column;
+      }
+
+      .vitals-controls-head .admin-link-btn {
+        width: 100%;
+      }
+
+      .vitals-controls,
+      .vitals-summary {
+        grid-template-columns: 1fr;
+      }
+
+      .vitals-guide-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <a href="/" class="logo">Rusman</a>
+    <button type="button" id="mobile-menu-toggle" class="mobile-menu-toggle" aria-label="Open menu" aria-controls="mobile-sidebar" aria-expanded="false">☰</button>
+    <nav>
+      <a href="/" class="nav-link">Home</a>
+      <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+      <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+      <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
+      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+      <a href="/admin/profile.html" class="nav-link">Profile</a>
+      <button id="theme-toggle"></button>
+    </nav>
+  </div>
+</header>
+
+<div id="mobile-sidebar-backdrop" class="mobile-sidebar-backdrop" hidden></div>
+<aside id="mobile-sidebar" class="mobile-sidebar" aria-label="Mobile navigation" aria-hidden="true">
+  <div class="mobile-sidebar-head">
+    <strong>Menu</strong>
+    <button type="button" id="mobile-sidebar-close" class="mobile-sidebar-close" aria-label="Close menu">✕</button>
+  </div>
+  <nav class="mobile-sidebar-nav">
+    <a href="/" class="nav-link">Home</a>
+    <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+    <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+    <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
+    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+    <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
+    <div class="mobile-theme-row">
+      <span>Theme</span>
+      <button type="button" id="mobile-theme-toggle" class="mobile-theme-switch" aria-label="Toggle theme"></button>
+    </div>
+  </nav>
+</aside>
+
+<main>
+  <div class="admin-container">
+    <div class="admin-page-head">
+      <h1 class="admin-title">Core Web Vitals</h1>
+      <p class="admin-subtitle">Minimal internal view for recent performance measurements.</p>
+    </div>
+
+    <div id="status" class="admin-status" role="status" aria-live="polite"></div>
+
+    <section class="admin-section vitals-shell">
+      <div class="vitals-controls-head">
+        <div>
+          <h2>Live Snapshot</h2>
+          <p>Filter and inspect collected vitals from real page visits.</p>
+        </div>
+        <button id="refreshVitalsBtn" type="button" class="admin-link-btn admin-link-btn-primary">Refresh</button>
+      </div>
+
+      <div class="vitals-controls">
+        <div class="form-group">
+          <label for="vitalsSinceHours">Since (hours)</label>
+          <input id="vitalsSinceHours" type="number" min="1" max="720" value="24" />
+        </div>
+        <div class="form-group">
+          <label for="vitalsLimit">Rows</label>
+          <input id="vitalsLimit" type="number" min="1" max="200" value="50" />
+        </div>
+        <div class="form-group">
+          <label for="vitalsMetric">Metric</label>
+          <select id="vitalsMetric">
+            <option value="">All</option>
+            <option value="LCP">LCP</option>
+            <option value="CLS">CLS</option>
+            <option value="INP">INP</option>
+            <option value="FCP">FCP</option>
+            <option value="TTFB">TTFB</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="vitalsPath">Path (optional)</label>
+          <input id="vitalsPath" type="text" placeholder="/post.html?slug=..." />
+        </div>
+      </div>
+
+      <div class="vitals-health" id="vitalsHealth">
+        <div>
+          <strong>Performance Health</strong>
+          <p id="vitalsHealthText">Loading health signal…</p>
+        </div>
+        <span id="vitalsHealthBadge" class="vitals-health-badge">unknown</span>
+      </div>
+
+      <div id="vitalsSummary" class="vitals-summary" aria-live="polite"></div>
+
+      <p id="vitalsRetention" class="vitals-retention"></p>
+
+      <div class="vitals-path-summary" id="vitalsPathSummary">
+        <div class="vitals-path-summary-head">Top path + metric P75 snapshot</div>
+        <ul id="vitalsPathSummaryList" class="vitals-path-summary-list"></ul>
+      </div>
+
+      <div class="vitals-table-wrap">
+        <table class="vitals-table" aria-label="Web vitals entries">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Metric</th>
+              <th>Value</th>
+              <th>Rating</th>
+              <th>Path</th>
+              <th>Source</th>
+              <th>Metric ID</th>
+            </tr>
+          </thead>
+          <tbody id="vitalsTableBody">
+            <tr><td colspan="7">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p id="vitalsEmpty" class="vitals-empty" hidden>No metrics found for this filter.</p>
+
+      <section class="vitals-quick-guide" aria-label="Quick Vitals improvement guide">
+        <h3>Quick Improvement Guide</h3>
+        <p>Use this box for fast decisions: check the health badge, then prioritize any metric in <strong>poor</strong>, then <strong>needs-improvement</strong>, starting from paths with the most samples.</p>
+
+        <div class="vitals-guide-grid">
+          <article class="vitals-guide-card">
+            <strong>Target thresholds (P75)</strong>
+            <small>
+              LCP: good ≤ 2500ms<br />
+              INP: good ≤ 200ms<br />
+              CLS: good ≤ 0.10
+            </small>
+          </article>
+          <article class="vitals-guide-card">
+            <strong>Secondary metrics</strong>
+            <small>
+              FCP: aim ≤ 1800ms<br />
+              TTFB: aim ≤ 800ms<br />
+              Fix by traffic impact first.
+            </small>
+          </article>
+          <article class="vitals-guide-card">
+            <strong>Fast triage order</strong>
+            <small>
+              1) High-sample poor paths<br />
+              2) Home and post pages<br />
+              3) Shared assets/scripts
+            </small>
+          </article>
+        </div>
+
+        <ol class="vitals-guide-list">
+          <li><strong>LCP high:</strong> compress hero/post images, lazy-load below-the-fold media, reduce render-blocking CSS/JS.</li>
+          <li><strong>INP high:</strong> reduce heavy JavaScript on input/click, split long tasks, defer non-critical handlers.</li>
+          <li><strong>CLS high:</strong> reserve width/height for images/embeds/ads, avoid inserting content above existing content.</li>
+          <li><strong>FCP/TTFB high:</strong> optimize server response time, cache repeated API calls, reduce payload size.</li>
+          <li><strong>After every fix:</strong> wait for new samples, refresh this page, verify P75 moved in the right direction.</li>
+        </ol>
+
+        <div class="vitals-terms" aria-label="Vitals glossary">
+          <h4>What each thing means</h4>
+          <ul class="vitals-terms-list">
+            <li><strong>LCP:</strong> how fast the main content becomes visible.</li>
+            <li><strong>INP:</strong> how quickly the page reacts after user interaction (click/tap/type).</li>
+            <li><strong>CLS:</strong> visual stability; lower means fewer layout jumps.</li>
+            <li><strong>FCP:</strong> first moment users see any painted content.</li>
+            <li><strong>TTFB:</strong> server/network delay before first byte arrives.</li>
+            <li><strong>P75:</strong> 75th percentile (main number to track for user experience quality).</li>
+            <li><strong>Avg:</strong> arithmetic average; useful context but less reliable than P75 for decisions.</li>
+            <li><strong>Samples:</strong> number of collected measurements; higher sample count means more confidence.</li>
+            <li><strong>Rating:</strong> quality band for a single measurement (`good`, `needs-improvement`, `poor`).</li>
+            <li><strong>Path:</strong> exact page URL/path where the measurement happened.</li>
+            <li><strong>Source:</strong> where the metric was captured (browser/page context).</li>
+            <li><strong>Metric ID:</strong> unique event id to help identify duplicate/repeated reports.</li>
+          </ul>
+        </div>
+      </section>
+    </section>
+  </div>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div class="footer-left">
+      <div class="brand-small">
+        Antonios <span style="color:var(--accent)">Rusman</span>
+      </div>
+      <div class="muted small">© <span id="year"></span> <a href="https://rusman.gr" target="_blank" rel="noopener">Antonios Rusman</a> — All rights reserved.</div>
+    </div>
+
+    <div class="footer-center">
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <a href="/tos.html">Terms of Service</a>
+        <a href="/privacy.html">Privacy Policy</a>
+      </nav>
+    </div>
+
+    <div class="footer-right" aria-hidden="false">
+      <div class="social" role="list">
+        <a class="social-link" href="mailto:info@rusman.gr" aria-label="Email" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <path d="M3 6.5h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-11z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M21 6.5L12 13 3 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+
+        <a class="social-link" href="https://github.com/AntonisRsmn" target="_blank" rel="noopener" aria-label="GitHub" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <path d="M12 2C7.58 2 4 5.58 4 10c0 3.54 2.29 6.54 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82A7.56 7.56 0 0 1 12 6.8c.68.003 1.36.092 2 .27 1.53-1.03 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 20 10c0-4.42-3.58-8-8-8z" fill="currentColor"/>
+          </svg>
+        </a>
+
+        <a class="social-link" href="https://www.linkedin.com/in/antonis-rusman-a46424319/" target="_blank" rel="noopener" aria-label="LinkedIn" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M7.5 11.5v5M7.5 8.5v.01M12 16.5v-4c0-1 .6-1.5 1.4-1.5.8 0 1.6.5 1.6 1.6v3.9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+
+        <a class="social-link" href="https://instagram.com/_.rusman._" target="_blank" rel="noopener" aria-label="Instagram" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <rect x="3.5" y="3.5" width="17" height="17" rx="4" stroke="currentColor" stroke-width="1.6"/>
+            <path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="17.5" cy="6.5" r="0.6" fill="currentColor"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script src="../js/theme.js"></script>
+<script>
+  const yearElement = document.getElementById("year");
+  if (yearElement) {
+    yearElement.textContent = new Date().getFullYear();
+  }
+
+  const statusElement = document.getElementById("status");
+  const summaryElement = document.getElementById("vitalsSummary");
+  const tableBody = document.getElementById("vitalsTableBody");
+  const emptyElement = document.getElementById("vitalsEmpty");
+  const healthBadgeElement = document.getElementById("vitalsHealthBadge");
+  const healthTextElement = document.getElementById("vitalsHealthText");
+  const pathSummaryListElement = document.getElementById("vitalsPathSummaryList");
+  const retentionElement = document.getElementById("vitalsRetention");
+  let statusTimeout = null;
+
+  function setStatus(message, mode = "success", autoHideMs = 0) {
+    if (!statusElement) return;
+    if (statusTimeout) {
+      clearTimeout(statusTimeout);
+      statusTimeout = null;
+    }
+
+    const text = String(message || "").trim();
+    if (!text) {
+      statusElement.className = "admin-status";
+      statusElement.textContent = "";
+      return;
+    }
+
+    const allowedModes = new Set(["success", "error", "info"]);
+    const resolvedMode = allowedModes.has(mode) ? mode : "success";
+    statusElement.className = `admin-status show ${resolvedMode}`;
+    statusElement.textContent = text;
+
+    if (autoHideMs > 0) {
+      statusTimeout = window.setTimeout(() => {
+        setStatus("");
+      }, autoHideMs);
+    }
+  }
+
+  function toDisplayValue(name, value) {
+    const metric = String(name || "").toUpperCase();
+    const numeric = Number(value || 0);
+    if (!Number.isFinite(numeric)) return "0";
+    if (metric === "CLS") return numeric.toFixed(3);
+    return `${Math.round(numeric)} ms`;
+  }
+
+  function renderSummary(rows) {
+    summaryElement.innerHTML = "";
+    const metrics = ["LCP", "CLS", "INP", "FCP", "TTFB"];
+
+    metrics.forEach((metricName) => {
+      const found = rows.find(row => String(row?.name || "") === metricName);
+      const card = document.createElement("div");
+      card.className = "vitals-card";
+      card.innerHTML = `
+        <strong>${metricName}</strong>
+        <small>
+          P75: ${toDisplayValue(metricName, found?.p75 || 0)} ·
+          Avg: ${toDisplayValue(metricName, found?.avgValue || 0)} ·
+          Samples: ${Number(found?.count || 0)}
+        </small>
+      `;
+      summaryElement.appendChild(card);
+    });
+  }
+
+  function renderHealth(health) {
+    const status = String(health?.status || "unknown").toLowerCase();
+    const message = String(health?.message || "No health status available yet.");
+    if (healthTextElement) {
+      healthTextElement.textContent = message;
+    }
+
+    if (healthBadgeElement) {
+      healthBadgeElement.className = `vitals-health-badge ${status}`;
+      healthBadgeElement.textContent = status;
+    }
+  }
+
+  function renderPathSummary(rows) {
+    if (!pathSummaryListElement) return;
+    pathSummaryListElement.innerHTML = "";
+
+    const list = (Array.isArray(rows) ? rows : []).slice(0, 8);
+    if (!list.length) {
+      pathSummaryListElement.innerHTML = '<li><strong>No path summary yet</strong><small>Collect more samples to populate this section.</small></li>';
+      return;
+    }
+
+    list.forEach((row) => {
+      const li = document.createElement("li");
+      const metricName = String(row?.name || "").toUpperCase();
+      const path = String(row?.path || "/");
+      const count = Number(row?.count || 0);
+      li.innerHTML = `
+        <div>
+          <strong>${metricName} · P75 ${toDisplayValue(metricName, row?.p75 || 0)} · ${count} samples</strong>
+          <small title="${path.replace(/"/g, "&quot;")}">${path}</small>
+        </div>
+        <span class="vitals-rating">${metricName}</span>
+      `;
+      pathSummaryListElement.appendChild(li);
+    });
+  }
+
+  function renderItems(items) {
+    tableBody.innerHTML = "";
+
+    if (!Array.isArray(items) || !items.length) {
+      emptyElement.hidden = false;
+      tableBody.innerHTML = '<tr><td colspan="7">No rows.</td></tr>';
+      return;
+    }
+
+    emptyElement.hidden = true;
+
+    items.forEach((item) => {
+      const tr = document.createElement("tr");
+      const created = item?.createdAt ? new Date(item.createdAt).toLocaleString() : "-";
+      const name = String(item?.name || "-");
+      const rating = String(item?.rating || "unknown");
+      const path = String(item?.path || "-");
+      const source = String(item?.source || "-");
+      const metricId = String(item?.metricId || "-");
+
+      tr.innerHTML = `
+        <td>${created}</td>
+        <td><strong>${name}</strong></td>
+        <td>${toDisplayValue(name, item?.value || 0)}</td>
+        <td><span class="vitals-rating ${rating}">${rating}</span></td>
+        <td><span class="vitals-path" title="${path.replace(/"/g, "&quot;")}">${path}</span></td>
+        <td>${source}</td>
+        <td>${metricId}</td>
+      `;
+
+      tableBody.appendChild(tr);
+    });
+  }
+
+  async function loadVitals() {
+    const sinceHours = String(document.getElementById("vitalsSinceHours")?.value || "24").trim();
+    const limit = String(document.getElementById("vitalsLimit")?.value || "50").trim();
+    const name = String(document.getElementById("vitalsMetric")?.value || "").trim();
+    const path = String(document.getElementById("vitalsPath")?.value || "").trim();
+
+    const params = new URLSearchParams();
+    params.set("sinceHours", sinceHours);
+    params.set("limit", limit);
+    if (name) params.set("name", name);
+    if (path) params.set("path", path);
+
+    try {
+      setStatus("Loading vitals...", "info");
+      const response = await fetch(`/api/metrics/web-vitals?${params.toString()}`);
+      const payload = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        setStatus(payload.error || "Could not load metrics.", "error");
+        renderSummary([]);
+        renderHealth({ status: "unknown", message: "Could not load health status." });
+        renderPathSummary([]);
+        if (retentionElement) retentionElement.textContent = "";
+        renderItems([]);
+        return;
+      }
+
+      renderSummary(Array.isArray(payload.summary) ? payload.summary : []);
+      renderHealth(payload.health || {});
+      renderPathSummary(Array.isArray(payload.pathSummary) ? payload.pathSummary : []);
+      if (retentionElement) {
+        const retentionDays = Number(payload?.retentionDays || 0);
+        retentionElement.textContent = retentionDays > 0
+          ? `Auto retention: metrics older than ${retentionDays} days are removed automatically.`
+          : "";
+      }
+      renderItems(Array.isArray(payload.items) ? payload.items : []);
+      setStatus(`Loaded ${Number(payload.total || 0)} matching entries.`, "success", 5000);
+    } catch {
+      setStatus("Could not reach the server.", "error");
+      renderSummary([]);
+      renderHealth({ status: "unknown", message: "Could not reach server for health status." });
+      renderPathSummary([]);
+      if (retentionElement) retentionElement.textContent = "";
+      renderItems([]);
+    }
+  }
+
+  document.getElementById("refreshVitalsBtn")?.addEventListener("click", loadVitals);
+
+  window.addEventListener("DOMContentLoaded", () => {
+    loadVitals();
+  });
+</script>
+</body>
+</html>

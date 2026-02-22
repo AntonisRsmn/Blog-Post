@@ -274,17 +274,29 @@ function ensureDeleteConfirmModal() {
   return overlay;
 }
 
-window.showDeleteConfirm = function showDeleteConfirm(message = 'Are you sure you want to delete this?') {
+window.showAppConfirm = function showAppConfirm(message = 'Are you sure?', options = {}) {
   const overlay = ensureDeleteConfirmModal();
+  const titleEl = overlay.querySelector('#app-delete-confirm-title');
   const messageEl = overlay.querySelector('#app-delete-confirm-message');
   const acceptButton = overlay.querySelector('#app-delete-confirm-accept');
   const cancelButton = overlay.querySelector('#app-delete-confirm-cancel');
 
-  if (!messageEl || !acceptButton || !cancelButton) {
+  if (!titleEl || !messageEl || !acceptButton || !cancelButton) {
     return Promise.resolve(window.confirm(message));
   }
 
+  const {
+    title = 'Please confirm',
+    confirmText = 'OK',
+    cancelText = 'Cancel',
+    confirmClass = ''
+  } = options || {};
+
+  titleEl.textContent = title;
   messageEl.textContent = message;
+  acceptButton.textContent = confirmText;
+  cancelButton.textContent = cancelText;
+  acceptButton.className = confirmClass ? String(confirmClass) : '';
 
   return new Promise(resolve => {
     const previousOverflow = document.body.style.overflow;
@@ -322,6 +334,15 @@ window.showDeleteConfirm = function showDeleteConfirm(message = 'Are you sure yo
     document.addEventListener('keydown', handleKeyDown);
     acceptButton.addEventListener('click', onAccept);
     cancelButton.addEventListener('click', onCancel);
+  });
+};
+
+window.showDeleteConfirm = function showDeleteConfirm(message = 'Are you sure you want to delete this?') {
+  return window.showAppConfirm(message, {
+    title: 'Confirm deletion',
+    confirmText: 'Delete',
+    cancelText: 'Cancel',
+    confirmClass: 'danger'
   });
 };
 
@@ -761,6 +782,138 @@ async function initializeTodayEventsBanner() {
   window.addEventListener('scroll', scheduleReleaseCalendarTopOffsetUpdate, { passive: true });
 }
 
+function ensureFooterNewsletterBlock() {
+  const footer = document.querySelector('.site-footer');
+  if (!footer) return null;
+
+  const center = footer.querySelector('.footer-center');
+  if (!center) return null;
+
+  let newsletter = center.querySelector('.footer-newsletter');
+  if (newsletter) return newsletter;
+
+  newsletter = document.createElement('div');
+  newsletter.className = 'footer-newsletter';
+  newsletter.innerHTML = `
+    <p class="newsletter-title">Subscribe to our Newsletters</p>
+    <form id="newsletter-form" class="newsletter-form" aria-label="Newsletter subscription">
+      <input id="newsletter-email" type="email" placeholder="Subscribe to our Newsletters" autocomplete="email" required />
+      <button type="submit">Subscribe</button>
+    </form>
+    <div id="newsletter-status" class="newsletter-status" aria-live="polite"></div>
+  `;
+
+  center.insertBefore(newsletter, center.firstChild);
+  return newsletter;
+}
+
+function initializeGlobalNewsletterCapture() {
+  ensureFooterNewsletterBlock();
+
+  const form = document.getElementById('newsletter-form');
+  const emailInput = document.getElementById('newsletter-email');
+  const statusEl = document.getElementById('newsletter-status');
+  if (!form || !emailInput || !statusEl) return;
+  if (form.dataset.bound === '1') return;
+  form.dataset.bound = '1';
+  let statusHideTimer = null;
+
+  function setNewsletterStatus(message, type = '') {
+    if (statusHideTimer) {
+      clearTimeout(statusHideTimer);
+      statusHideTimer = null;
+    }
+
+    statusEl.textContent = String(message || '');
+    statusEl.classList.remove('is-error', 'is-success');
+    if (type) statusEl.classList.add(type);
+
+    if (!message) return;
+    statusHideTimer = setTimeout(() => {
+      statusEl.textContent = '';
+      statusEl.classList.remove('is-error', 'is-success');
+      statusHideTimer = null;
+    }, 5000);
+  }
+
+  function getNewsletterContext() {
+    const pathname = String(window.location.pathname || '/');
+    const isHome = pathname === '/' || pathname === '/index.html';
+    const isPost = pathname === '/post.html';
+    const isAuthor = pathname === '/author.html';
+
+    let source = 'footer-global';
+    if (isHome) source = 'homepage-footer';
+    else if (isPost) source = 'post-footer';
+    else if (isAuthor) source = 'author-footer';
+    else if (pathname.startsWith('/admin/')) source = 'admin-footer';
+    else source = 'page-footer';
+
+    let postId = '';
+    let postSlug = '';
+    let postTitle = '';
+
+    if (isPost) {
+      const params = new URLSearchParams(window.location.search || '');
+      postId = String(params.get('id') || '').trim();
+      postSlug = String(params.get('slug') || '').trim();
+      postTitle = String(document.querySelector('#post h1')?.textContent || '').trim();
+    }
+
+    return {
+      source,
+      sourcePath: pathname,
+      postId,
+      postSlug,
+      postTitle
+    };
+  }
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const email = String(emailInput.value || '').trim();
+    if (!email) return;
+
+    setNewsletterStatus('Subscribing...');
+
+    const context = getNewsletterContext();
+
+    try {
+      const response = await fetch('/api/newsletter/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email,
+          source: context.source,
+          sourcePath: context.sourcePath,
+          postId: context.postId,
+          postSlug: context.postSlug,
+          postTitle: context.postTitle,
+          locale: document.documentElement?.lang || navigator.language || ''
+        })
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        setNewsletterStatus(payload?.error || 'Could not subscribe right now.', 'is-error');
+        return;
+      }
+
+      const payload = await response.json().catch(() => ({}));
+
+      if (payload?.alreadySubscribed) {
+        setNewsletterStatus('You are already subscribed.', 'is-success');
+        return;
+      }
+
+      setNewsletterStatus('Thanks! You are subscribed.', 'is-success');
+      emailInput.value = '';
+    } catch {
+      setNewsletterStatus('Could not subscribe right now.', 'is-error');
+    }
+  });
+}
+
 updateAuthLinks();
 updateStaffLinks();
 updateGuestLinks();
@@ -768,3 +921,4 @@ initializeMobileSidebar();
 initializeTodayEventsBanner();
 scheduleReleaseCalendarTopOffsetUpdate();
 initializeCookiePreferences();
+initializeGlobalNewsletterCapture();

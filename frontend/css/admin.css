@@ -611,14 +611,18 @@ html[data-theme="light"] .admin-status.deleted {
 }
 
 .dashboard-posts-section,
-.dashboard-events-section {
+.dashboard-events-section,
+.dashboard-categories-section,
+.dashboard-featured-section {
   align-self: stretch;
   display: flex;
   flex-direction: column;
 }
 
 .dashboard-posts-section .posts-list,
-.dashboard-events-section .posts-list {
+.dashboard-events-section .posts-list,
+.dashboard-categories-section .posts-list,
+.dashboard-featured-section .posts-list {
   flex: 1;
 }
 
@@ -980,6 +984,16 @@ html[data-theme="light"] .admin-status.deleted {
   margin-bottom: 0;
 }
 
+.profile-links-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.profile-links-grid .form-group {
+  margin-bottom: 0;
+}
+
 #avatar {
   width: 100%;
   max-width: 280px;
@@ -1067,6 +1081,11 @@ html[data-theme="light"] .admin-status.deleted {
   }
 
   .name-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .profile-links-grid {
     grid-template-columns: 1fr;
     gap: 0;
   }

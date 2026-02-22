@@ -23,6 +23,7 @@
       <a href="/" class="nav-link">Home</a>
       <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
       <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+      <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
       <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
       <a href="/admin/profile.html" class="nav-link" data-auth-link>Profile</a>
       <button id="theme-toggle"></button>
@@ -40,6 +41,7 @@
     <a href="/" class="nav-link">Home</a>
     <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
     <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+    <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
     <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
     <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
     <div class="mobile-theme-row">
@@ -112,6 +114,12 @@
         <div class="form-group">
           <label for="post-edit-summary">SEO Meta Description</label>
           <textarea id="post-edit-summary" rows="3" maxlength="220" placeholder="Short search/snippet description (max 220 characters)"></textarea>
+        </div>
+
+        <div class="form-group">
+          <label>Internal link suggestions</label>
+          <p class="release-manager-hint">Suggested existing posts to link from this article.</p>
+          <ul id="post-edit-link-suggestions" class="posts-list" style="margin-top: 8px;"></ul>
         </div>
 
         <div class="post-edit-actions">
@@ -192,8 +200,174 @@ const editSlugInput = document.getElementById("post-edit-slug");
 const editCategoriesInput = document.getElementById("post-edit-categories");
 const editIdInput = document.getElementById("post-edit-id");
 const editSummaryInput = document.getElementById("post-edit-summary");
+const postEditLinkSuggestionsEl = document.getElementById("post-edit-link-suggestions");
 let statusHideTimer = null;
 const DEFAULT_POST_IMAGE = "/assets/default-post.svg";
+const POSTS_EDITOR_DRAFT_PREFIX = "posts-editor-draft-v1:";
+let postsDraftTimer = null;
+let postsDraftRestoreInProgress = false;
+
+function getPostsDraftContextId() {
+  const id = String(editIdInput?.value || "").trim();
+  return id || "new";
+}
+
+function getPostsDraftKey(contextId = getPostsDraftContextId()) {
+  return `${POSTS_EDITOR_DRAFT_PREFIX}${contextId}`;
+}
+
+function parsePostsDraft(raw) {
+  try {
+    const parsed = JSON.parse(String(raw || ""));
+    if (!parsed || typeof parsed !== "object") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function getPostsDraftByContext(contextId = getPostsDraftContextId()) {
+  try {
+    const raw = localStorage.getItem(getPostsDraftKey(contextId));
+    return parsePostsDraft(raw);
+  } catch {
+    return null;
+  }
+}
+
+function hasPostsDraftContent(payload) {
+  const draft = payload && typeof payload === "object" ? payload : {};
+  const hasTitle = String(draft.title || "").trim().length > 0;
+  const hasSlug = String(draft.slug || "").trim().length > 0;
+  const hasCategories = String(draft.categories || "").trim().length > 0;
+  const hasSummary = String(draft.metaDescription || "").trim().length > 0;
+  const hasBlocks = Array.isArray(draft.content) && draft.content.length > 0;
+  return hasTitle || hasSlug || hasCategories || hasSummary || hasBlocks;
+}
+
+function toComparablePostsCategories(value) {
+  return parseCategories(value)
+    .map(item => String(item || "").trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function toComparablePostsBlocks(blocks) {
+  return JSON.stringify(Array.isArray(blocks) ? blocks : []);
+}
+
+function isPostsDraftDifferentFromBase(draft, baseState) {
+  const base = baseState && typeof baseState === "object" ? baseState : null;
+  if (!base) return true;
+
+  const draftTitle = String(draft?.title || "").trim();
+  const baseTitle = String(base?.title || "").trim();
+  if (draftTitle !== baseTitle) return true;
+
+  const draftSlug = String(draft?.slug || "").trim();
+  const baseSlug = String(base?.slug || "").trim();
+  if (draftSlug !== baseSlug) return true;
+
+  const draftSummary = String(draft?.metaDescription || "").trim();
+  const baseSummary = String(base?.metaDescription || "").trim();
+  if (draftSummary !== baseSummary) return true;
+
+  const draftCategories = JSON.stringify(toComparablePostsCategories(draft?.categories || ""));
+  const baseCategories = JSON.stringify(toComparablePostsCategories(base?.categories || ""));
+  if (draftCategories !== baseCategories) return true;
+
+  const draftBlocks = toComparablePostsBlocks(draft?.content);
+  const baseBlocks = toComparablePostsBlocks(base?.content);
+  return draftBlocks !== baseBlocks;
+}
+
+function removePostsDraft(contextId = getPostsDraftContextId()) {
+  try {
+    localStorage.removeItem(getPostsDraftKey(contextId));
+  } catch {
+  }
+}
+
+async function savePostsEditorDraft() {
+  if (postsDraftRestoreInProgress) return;
+  if (!editOverlay || editOverlay.hidden) return;
+  if (!postEditor) return;
+
+  let blocks = [];
+  try {
+    const payload = await postEditor.save();
+    blocks = Array.isArray(payload?.blocks) ? payload.blocks : [];
+  } catch {
+    return;
+  }
+
+  const contextId = getPostsDraftContextId();
+  const draft = {
+    contextId,
+    title: String(editTitleInput?.value || ""),
+    slug: String(editSlugInput?.value || ""),
+    categories: String(editCategoriesInput?.value || ""),
+    metaDescription: String(editSummaryInput?.value || ""),
+    content: blocks,
+    updatedAt: new Date().toISOString()
+  };
+
+  if (!hasPostsDraftContent(draft)) {
+    removePostsDraft(contextId);
+    return;
+  }
+
+  try {
+    localStorage.setItem(getPostsDraftKey(contextId), JSON.stringify(draft));
+  } catch {
+  }
+}
+
+function schedulePostsEditorDraftAutosave(delayMs = 1200) {
+  if (postsDraftRestoreInProgress) return;
+  if (postsDraftTimer) {
+    clearTimeout(postsDraftTimer);
+  }
+
+  postsDraftTimer = setTimeout(() => {
+    postsDraftTimer = null;
+    savePostsEditorDraft();
+  }, Math.max(350, Number(delayMs) || 1200));
+}
+
+async function maybeRestorePostsEditorDraft(contextId = getPostsDraftContextId(), baseState = null) {
+  const draft = getPostsDraftByContext(contextId);
+  if (!draft || !hasPostsDraftContent(draft)) return;
+  if (!isPostsDraftDifferentFromBase(draft, baseState)) return;
+
+  const draftDate = draft.updatedAt ? new Date(draft.updatedAt) : null;
+  const draftLabel = draftDate && !Number.isNaN(draftDate.getTime())
+    ? draftDate.toLocaleString()
+    : "recent session";
+  const promptText = `Unsaved draft found (${draftLabel}). Restore it?`;
+  const shouldRestore = window.showAppConfirm
+    ? await window.showAppConfirm(promptText, {
+      title: "Restore draft",
+      confirmText: "Restore",
+      cancelText: "Cancel"
+    })
+    : window.confirm(promptText);
+  if (!shouldRestore) return;
+
+  postsDraftRestoreInProgress = true;
+  try {
+    if (editTitleInput) editTitleInput.value = String(draft.title || "");
+    if (editSlugInput) editSlugInput.value = String(draft.slug || "");
+    if (editCategoriesInput) editCategoriesInput.value = String(draft.categories || "");
+    if (editSummaryInput) editSummaryInput.value = String(draft.metaDescription || "");
+    if (postEditor) {
+      await postEditor.render({ blocks: Array.isArray(draft.content) ? draft.content : [] });
+    }
+    showStatus("Draft restored.", "success");
+  } finally {
+    postsDraftRestoreInProgress = false;
+  }
+}
 
 function showStatus(message, type) {
   if (!statusEl) return;
@@ -215,6 +389,69 @@ function showStatus(message, type) {
 
 function normalizePostsSearch(value) {
   return String(value || "").toLowerCase().trim();
+}
+
+function toSuggestionTerms(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, " ")
+    .replace(/[-_]+/g, " ")
+    .split(/\s+/)
+    .map(term => term.trim())
+    .filter(term => term.length >= 3);
+}
+
+function renderPostEditLinkSuggestions() {
+  if (!postEditLinkSuggestionsEl) return;
+
+  const title = String(editTitleInput?.value || "");
+  const slug = String(editSlugInput?.value || "");
+  const categories = String(editCategoriesInput?.value || "");
+  const currentId = String(editIdInput?.value || "").trim();
+  const terms = [...new Set([
+    ...toSuggestionTerms(title),
+    ...toSuggestionTerms(slug),
+    ...toSuggestionTerms(categories)
+  ])];
+
+  const candidates = (Array.isArray(allPosts) ? allPosts : [])
+    .filter(post => String(post?._id || "") !== currentId)
+    .map(post => {
+      const haystack = normalizePostsSearch(`${post?.title || ""} ${post?.slug || ""} ${(post?.categories || []).join(" ")}`);
+      const score = terms.reduce((sum, term) => sum + (haystack.includes(term) ? 1 : 0), 0);
+      return { post, score };
+    })
+    .filter(item => item.score > 0)
+    .sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return new Date(b.post?.createdAt || 0) - new Date(a.post?.createdAt || 0);
+    })
+    .slice(0, 5);
+
+  postEditLinkSuggestionsEl.innerHTML = "";
+
+  if (!terms.length) {
+    postEditLinkSuggestionsEl.innerHTML = '<li style="padding: 10px 12px; color: var(--text-muted);">Start typing title/categories to get suggestions.</li>';
+    return;
+  }
+
+  if (!candidates.length) {
+    postEditLinkSuggestionsEl.innerHTML = '<li style="padding: 10px 12px; color: var(--text-muted);">No strong matches yet.</li>';
+    return;
+  }
+
+  candidates.forEach(({ post, score }) => {
+    const li = document.createElement("li");
+    li.className = "post-item";
+    const safePostId = encodeURIComponent(post?._id || "");
+    const safeSlug = encodeURIComponent(post?.slug || "");
+    const href = `/post.html?id=${safePostId}${safeSlug ? `&slug=${safeSlug}` : ""}`;
+    li.innerHTML = `
+      <a class="post-item-title" href="${href}" target="_blank" rel="noopener">${post?.title || "Untitled"}</a>
+      <span class="release-event-date">/${post?.slug || ""} • relevance ${score}</span>
+    `;
+    postEditLinkSuggestionsEl.appendChild(li);
+  });
 }
 
 function toSlug(value) {
@@ -264,11 +501,65 @@ function generateSummaryFromBlocks(blocks) {
   return `${normalized.slice(0, 177).trimEnd()}...`;
 }
 
+function extractImageAltText(block) {
+  if (!block || block.type !== "image") return "";
+  const rawAlt = String(
+    block?.data?.alt ||
+    block?.data?.caption ||
+    block?.data?.file?.alt ||
+    ""
+  );
+  return rawAlt.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+function normalizeImageAltInBlocks(blocks) {
+  const list = Array.isArray(blocks) ? blocks : [];
+  return list.map((block) => {
+    if (!block || block.type !== "image") return block;
+    const alt = extractImageAltText(block);
+    return {
+      ...block,
+      data: {
+        ...(block.data || {}),
+        alt
+      }
+    };
+  });
+}
+
+function getMissingImageAltCount(blocks) {
+  const list = Array.isArray(blocks) ? blocks : [];
+  return list
+    .filter(block => block?.type === "image")
+    .filter(block => !extractImageAltText(block))
+    .length;
+}
+
+async function confirmImageAltReminder(blocks) {
+  const missingCount = getMissingImageAltCount(blocks);
+  if (!missingCount) return true;
+
+  const noun = missingCount === 1 ? "image is" : "images are";
+  const promptText = `${missingCount} ${noun} missing alt text. Add short descriptive alt text to improve SEO and accessibility.`;
+  if (window.showAppConfirm) {
+    return window.showAppConfirm(promptText, {
+      title: "Alt-text reminder",
+      confirmText: "Publish anyway",
+      cancelText: "Review images"
+    });
+  }
+
+  return window.confirm(`${promptText} Continue publishing?`);
+}
+
 async function ensurePostEditor() {
   if (postEditor) return postEditor;
 
   postEditor = new EditorJS({
     holder: "posts-editor",
+    async onChange() {
+      schedulePostsEditorDraftAutosave();
+    },
     tools: {
       paragraph: {
         class: Paragraph,
@@ -323,6 +614,10 @@ function openEditModal() {
 
 async function closeEditModal() {
   if (!editOverlay) return;
+  if (postsDraftTimer) {
+    clearTimeout(postsDraftTimer);
+    postsDraftTimer = null;
+  }
   editOverlay.hidden = true;
   document.body.style.overflow = "";
   editForm?.reset();
@@ -339,10 +634,22 @@ async function closeEditModal() {
   if (editCancelButton) editCancelButton.textContent = "Cancel";
 }
 
+async function cancelEditAndDiscardDraft() {
+  if (postsDraftTimer) {
+    clearTimeout(postsDraftTimer);
+    postsDraftTimer = null;
+  }
+  const contextId = getPostsDraftContextId();
+  removePostsDraft(contextId);
+  await closeEditModal();
+}
+
 async function openCreatePostModal() {
   await ensurePostEditor();
   await closeEditModal();
   openEditModal();
+  await maybeRestorePostsEditorDraft("new");
+  renderPostEditLinkSuggestions();
 }
 
 async function ensureStaffAccess() {
@@ -440,6 +747,7 @@ async function loadPosts() {
     : [];
 
   renderPostsList();
+  renderPostEditLinkSuggestions();
 }
 
 async function editPostById(postId) {
@@ -480,6 +788,14 @@ async function editPostById(postId) {
 
   await postEditor.render({ blocks: Array.isArray(post.content) ? post.content : [] });
   openEditModal();
+  await maybeRestorePostsEditorDraft(String(post._id || postId || ""), {
+    title: post.title,
+    slug: post.slug,
+    categories: Array.isArray(post.categories) ? post.categories.join(", ") : "",
+    metaDescription: String(post.metaDescription || post.excerpt || "").trim() || generateSummaryFromBlocks(post.content || []),
+    content: Array.isArray(post.content) ? post.content : []
+  });
+  renderPostEditLinkSuggestions();
 }
 
 async function deletePost(id) {
@@ -512,16 +828,30 @@ async function openPostFromQuery() {
 document.getElementById("posts-search")?.addEventListener("input", renderPostsList);
 
 editTitleInput?.addEventListener("input", () => {
-  if (isSlugManuallyEdited) return;
-  editSlugInput.value = toSlug(editTitleInput.value);
+  if (!isSlugManuallyEdited) {
+    editSlugInput.value = toSlug(editTitleInput.value);
+  }
+  renderPostEditLinkSuggestions();
+  schedulePostsEditorDraftAutosave();
 });
 
 editSlugInput?.addEventListener("input", () => {
   isSlugManuallyEdited = true;
+  renderPostEditLinkSuggestions();
+  schedulePostsEditorDraftAutosave();
+});
+
+editCategoriesInput?.addEventListener("input", () => {
+  renderPostEditLinkSuggestions();
+  schedulePostsEditorDraftAutosave();
+});
+
+editSummaryInput?.addEventListener("input", () => {
+  schedulePostsEditorDraftAutosave();
 });
 
 editCloseButton?.addEventListener("click", closeEditModal);
-editCancelButton?.addEventListener("click", closeEditModal);
+editCancelButton?.addEventListener("click", cancelEditAndDiscardDraft);
 
 editOverlay?.addEventListener("click", event => {
   if (event.target === editOverlay) {
@@ -541,12 +871,19 @@ editForm?.addEventListener("submit", async event => {
 
   const postId = editIdInput.value;
   const isUpdate = !!postId;
+  const draftContextToClear = postId || "new";
 
   let blocks;
   try {
     blocks = await postEditor.save();
   } catch {
     showStatus("Editor content is invalid. Please review the post content and try again.", "error");
+    return;
+  }
+  const normalizedBlocks = normalizeImageAltInBlocks(blocks.blocks);
+  const canPublish = await confirmImageAltReminder(normalizedBlocks);
+  if (!canPublish) {
+    showStatus("Add alt text to image blocks before publishing.", "error");
     return;
   }
   const title = editTitleInput.value.trim();
@@ -558,9 +895,9 @@ editForm?.addEventListener("submit", async event => {
     title,
     slug,
     categories,
-    excerpt: String(editSummaryInput?.value || "").trim() || generateSummaryFromBlocks(blocks.blocks),
-    metaDescription: String(editSummaryInput?.value || "").trim() || generateSummaryFromBlocks(blocks.blocks),
-    content: blocks.blocks,
+    excerpt: String(editSummaryInput?.value || "").trim() || generateSummaryFromBlocks(normalizedBlocks),
+    metaDescription: String(editSummaryInput?.value || "").trim() || generateSummaryFromBlocks(normalizedBlocks),
+    content: normalizedBlocks,
     published: true
   };
 
@@ -580,6 +917,7 @@ editForm?.addEventListener("submit", async event => {
     return;
   }
 
+  removePostsDraft(draftContextToClear);
   showStatus(isUpdate ? "Post updated successfully." : "Post created successfully.", "success");
   await closeEditModal();
   await loadPosts();
