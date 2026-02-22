@@ -99,10 +99,9 @@ D) Random old behavior after code changes
 --------------------------------------------------
 7) CATEGORY PERMISSION BEHAVIOR (CURRENT)
 --------------------------------------------------
-- Admin and Staff can:
-  - view categories
-  - create categories
-  - delete categories
+- Admin and Staff can view/create categories.
+- Admin can delete any category.
+- Staff can delete only categories created by their own account.
 - Category editing/renaming is disabled
 
 If behavior seems old/stale:
@@ -148,9 +147,14 @@ After deploy, verify:
 - Image upload works (Cloudinary)
 - Home release/event strip appears below navbar and rotates correctly
 - Home featured rotator renders correctly
+- Author page loads with author hero and author-only listings
 - Posts with no image show default fallback image
 - Admin delete actions show confirmation popup before delete
 - Admin status messages auto-hide after ~5 seconds
+- Dashboard calendar section shows latest 10 events
+- In dashboard "New Event", posts already assigned to calendar are hidden from the selector
+- Analytics dashboard shows Top 10 posts/categories/authors with rank numbers
+- Analytics "Show all" pages work and search keeps original rank numbers
 
 --------------------------------------------------
 10) QUICK HEALTH TESTS
@@ -158,6 +162,13 @@ After deploy, verify:
 In browser:
 - /api/posts?list=1
 - /api/categories
+- /api/posts/manage/analytics
+- /api/posts/manage/analytics/posts
+- /api/posts/manage/analytics/categories
+- /api/posts/manage/analytics/authors
+- /admin/analytics-posts.html
+- /admin/analytics-categories.html
+- /admin/analytics-authors.html
 - /this-page-does-not-exist (should show custom frontend 404 page)
 - /api/unknown (should return JSON 404)
 

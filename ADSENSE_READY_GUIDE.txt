@@ -57,12 +57,13 @@ Note:
 --------------------------------------------------
 - Home page uses: homeSlot
 - Post page uses: postSlot
-- All other pages use: genericSlot
+- All other pages use: genericSlot (including admin analytics pages and author page)
 - Shared script: frontend/js/adsense.js
 
 --------------------------------------------------
 6) Latest platform updates (ad compatibility note)
 --------------------------------------------------
 - New home widgets (featured rotator + release/event strip) are ad-compatible and do not require extra AdSense config.
+- New analytics detail pages (posts/categories/authors rankings) are covered by genericSlot behavior.
 - Posts without image now use a default fallback image (frontend/assets/default-post.svg); this does not affect ad rendering.
 - Custom 404 page exists for non-API routes; keep AdSense placements on normal content pages only.

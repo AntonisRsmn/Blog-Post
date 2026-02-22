@@ -9,13 +9,15 @@
 - Αναζήτηση και φίλτρα κατηγοριών
 - Ανάγνωση πλήρους άρθρου (Editor.js περιεχόμενο: κείμενο, εικόνες, embeds, quotes)
 - Προβολή release calendar
-- Προβολή μπάρας release/event κάτω από το navbar στην αρχική (πρώτα σημερινά, μετά upcoming)
+- Προβολή μπάρας release/event κάτω από το navbar σε αρχική και author page (πρώτα σημερινά, μετά upcoming)
 - Προβολή featured posts rotator στην αρχική (χειροκίνητη επιλογή admin, έως 6)
+- Πρόσβαση σε author page με author hero/profile links και λίστα άρθρων μόνο του συγκεκριμένου author
 - Κλικ στο **Generate Summary** στη σελίδα άρθρου για δημιουργία ελληνικής σύνοψης μέσα σε εμφανές box
 
 ### Συνδεδεμένοι χρήστες
 - Πρόσβαση στη σελίδα προφίλ
 - Ενημέρωση στοιχείων προφίλ και avatar URL
+- Ενημέρωση profile social links (website, GitHub, LinkedIn, Instagram, Twitter/X, TikTok)
 - Αλλαγή κωδικού
 - Προσθήκη σχολίων
 - Διαγραφή δικών τους σχολίων
@@ -28,11 +30,12 @@
 - Διαχείριση featured posts από το admin dashboard (μόνο admin, έως 6 με αυτόματο rollover)
 - Διαχείριση κατηγοριών:
   - δημιουργία: admin + staff
-  - διαγραφή: admin + staff
+  - διαγραφή: admin διαγράφει όλες, staff διαγράφει μόνο όσες δημιούργησε ο ίδιος
   - επεξεργασία/μετονομασία: απενεργοποιημένη
 - Διαχείριση λίστας staff access (με τα τρέχοντα permissions επιτρέπεται σε admin και staff)
 - Κοινό confirmation modal πριν από destructive διαγραφές
 - Τα admin status μηνύματα κρύβονται αυτόματα σε 5 δευτερόλεπτα
+- Analytics dashboard με Top 10 λίστες (posts/categories/authors) + ξεχωριστές searchable “Show all” σελίδες με σταθερό rank
 
 ---
 
@@ -49,10 +52,13 @@
 ## Σημαντικές συμπεριφορές
 - Οι κατηγορίες κανονικοποιούνται σε UPPERCASE.
 - Η διαγραφή κατηγορίας αφαιρεί την κατηγορία case-insensitively και από τα posts.
+- Υπάρχει ownership πεδίο κατηγορίας (`createdBy`) για έλεγχο δικαιωμάτων διαγραφής staff.
 - Το κουμπί σύνοψης στη σελίδα άρθρου είναι one-time ανά post ανά browser (`localStorage`).
 - Το endpoint σύνοψης έχει rate limit (`/api/posts/summarize`, 5 αιτήματα/ώρα ανά IP).
 - Οι AI περιλήψεις ζητούνται στα Ελληνικά.
 - Posts χωρίς εικόνα χρησιμοποιούν default fallback image (`frontend/assets/default-post.svg`).
+- Στο admin dashboard, το calendar panel δείχνει τα 10 πιο πρόσφατα events.
+- Στο create event modal, posts που έχουν ήδη event δεν εμφανίζονται στο dropdown (εκτός από το event που επεξεργάζεσαι).
 - Άγνωστα non-API routes οδηγούν στην custom frontend 404 σελίδα, ενώ άγνωστα API routes επιστρέφουν JSON 404.
 
 ---
@@ -97,6 +103,8 @@
 - `GET /api/posts?list=1`
 - `GET /api/posts/by-id/:id`
 - `GET /api/posts/by-slug?slug=...`
+- `GET /api/posts/by-author?author=...`
+- `POST /api/posts/track-view`
 - `POST /api/posts/summarize` (rate-limited)
 - `GET /api/categories`
 - `GET /api/releases`
@@ -109,16 +117,26 @@
 - `GET /api/auth/profile`
 - `PUT /api/auth/profile`
 - `PUT /api/auth/password`
+- `GET /api/auth/author?name=...`
 
 ### Staff/Admin API
 - Posts: `POST/PUT/DELETE /api/posts/...`
 - Manage list για admin/staff: `GET /api/posts/manage?list=1`
 - Manage by id (ασφαλές path): `GET /api/posts/manage/by-id/:id`
+- Analytics:
+  - `GET /api/posts/manage/analytics` (Top 10 στο dashboard)
+  - `GET /api/posts/manage/analytics/posts` (πλήρες ranked posts)
+  - `GET /api/posts/manage/analytics/categories` (πλήρες ranked categories)
+  - `GET /api/posts/manage/analytics/authors` (πλήρες ranked authors)
 - Featured management (μόνο admin):
   - `GET /api/posts/manage/featured`
   - `POST /api/posts/manage/featured` (body: `postId`)
   - `DELETE /api/posts/manage/featured/:id`
-- Categories: `POST /api/categories`, `DELETE /api/categories/:name`, `PUT /api/categories/:name` επιστρέφει disabled (405)
+- Categories:
+  - `GET /api/categories/manage` (metadata + delete permission για τον τρέχοντα χρήστη)
+  - `POST /api/categories`
+  - `DELETE /api/categories/:name`
+  - `PUT /api/categories/:name` επιστρέφει disabled (405)
 - Staff list: routes στο `/api/staff`
 - Upload: `POST /api/upload`
 
