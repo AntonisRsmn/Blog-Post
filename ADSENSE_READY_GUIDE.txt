@@ -64,11 +64,15 @@ Note:
 6) Latest platform updates (ad compatibility note)
 --------------------------------------------------
 - New home widgets (featured rotator + release/event strip) are ad-compatible and do not require extra AdSense config.
+- New filter/search widgets (category search + calendar event jump + day-click filtering) are ad-compatible and do not require extra AdSense config.
+- Calendar event jump now uses a custom themed suggestion dropdown (instead of native browser gray selector) with no AdSense changes required.
 - New analytics detail pages (posts/categories/authors rankings) are covered by genericSlot behavior.
 - Broken-link Checker page (/admin/analytics-links.html) and Newsletter admin page (/admin/newsletter.html) are also covered by genericSlot behavior.
 - Footer newsletter form UX changes (desktop alignment + mobile placement) do not require any AdSense code changes.
 - Profile page links layout update (3 links top row + 3 bottom row on desktop) does not require any AdSense code changes.
 - In localhost/dev, AdSense initialization is intentionally skipped to reduce non-actionable CORS/cookie console noise.
+- Cookie consent preferences now include Essential/Analytics/Ads controls with a popup link to /cookies.html.
+- Dedicated Cookie Policy page exists at: /cookies.html (keep it aligned with your ad and consent behavior).
 - Post page YouTube embeds use privacy-enhanced `youtube-nocookie` mode; this is independent from AdSense slots.
 - Posts without image now use a default fallback image (frontend/assets/default-post.svg); this does not affect ad rendering.
 - Custom 404 page exists for non-API routes; keep AdSense placements on normal content pages only.

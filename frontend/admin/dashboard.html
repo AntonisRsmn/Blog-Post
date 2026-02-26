@@ -49,7 +49,7 @@
       <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
       <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
       <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
-      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Access</a>
       <a href="/admin/profile.html" class="nav-link">Profile</a>
       <button id="theme-toggle"></button>
     </nav>
@@ -67,7 +67,7 @@
     <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
     <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
     <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
-    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Access</a>
     <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
     <div class="mobile-theme-row">
       <span>Theme</span>
@@ -743,7 +743,7 @@ function renderDashboardCategories() {
 
 async function createCategory(name) {
   if (currentUserRole !== "admin" && currentUserRole !== "staff") {
-    showStatus("Staff access required.", "error");
+    showStatus("Access required.", "error");
     return false;
   }
 
@@ -772,7 +772,7 @@ async function createCategory(name) {
 
 async function deleteCategory(name) {
   if (currentUserRole !== "admin" && currentUserRole !== "staff") {
-    showStatus("Staff access required.", "error");
+    showStatus("Access required.", "error");
     return;
   }
 
@@ -811,7 +811,7 @@ async function deleteCategory(name) {
 
 function openCreateCategoryModal() {
   if (currentUserRole !== "admin" && currentUserRole !== "staff") {
-    showStatus("Staff access required.", "error");
+    showStatus("Access required.", "error");
     return;
   }
 

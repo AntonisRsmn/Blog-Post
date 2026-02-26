@@ -6,7 +6,7 @@ const UserSchema = new mongoose.Schema(
     passwordHash: { type: String, required: true },
     firstName: { type: String, default: "", trim: true },
     lastName: { type: String, default: "", trim: true },
-    username: { type: String, default: "" },
+    username: { type: String, trim: true, default: undefined },
     avatarUrl: { type: String, default: "" },
     websiteUrl: { type: String, default: "" },
     githubUrl: { type: String, default: "" },
@@ -14,9 +14,21 @@ const UserSchema = new mongoose.Schema(
     instagramUrl: { type: String, default: "" },
     twitterUrl: { type: String, default: "" },
     tiktokUrl: { type: String, default: "" },
-    role: { type: String, default: "commenter" }
+    role: { type: String, default: "commenter" },
+    failedLoginAttempts: { type: Number, default: 0 },
+    lockUntil: { type: Date, default: null }
   },
   { timestamps: true }
+);
+
+UserSchema.index(
+  { username: 1 },
+  {
+    name: "username_unique_sparse_ci",
+    unique: true,
+    collation: { locale: "en", strength: 2 },
+    sparse: true
+  }
 );
 
 module.exports = mongoose.model("User", UserSchema);

@@ -673,7 +673,7 @@ footer {
 /* Footer: cleaner, professional layout & SVG icons */
 .site-footer {
   border-top: 1px solid rgba(255,255,255,0.04);
-  padding: 48px 0 56px 0;
+  padding: 26px 0 30px 0;
   margin-top: 80px;
   color: var(--muted);
   background: transparent;
@@ -682,10 +682,11 @@ footer {
 
 .footer-grid {
   display: flex;
-  gap: 80px;
+  gap: 28px;
   align-items: center;
   justify-content: center;
-  max-width: 1000px;
+  max-width: 1200px;
+  width: min(1200px, calc(100% - 36px));
   margin: 0 auto;
 }
 
@@ -700,7 +701,12 @@ footer {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 300px;
+  min-width: 0;
+}
+
+.footer-right .footer-newsletter {
+  text-align: right;
+  align-items: flex-end;
 }
 
 .newsletter-title {
@@ -719,7 +725,7 @@ footer {
 
 .newsletter-form input[type="email"] {
   flex: 1 1 auto;
-  min-width: 220px;
+  min-width: 0;
   height: 38px;
   border-radius: 10px;
   border: 1px solid var(--border);
@@ -753,17 +759,19 @@ footer {
 @media (min-width: 769px) {
   .footer-grid {
     display: grid;
-    grid-template-columns: minmax(220px, 1fr) minmax(360px, 1.2fr) minmax(220px, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 28px;
     align-items: center;
-    width: min(1200px, calc(100% - 36px));
   }
 
   .footer-left {
+    min-width: 0;
     text-align: left;
+    justify-self: start;
   }
 
   .footer-center {
+    min-width: 0;
     grid-column: 2;
     justify-self: center;
     display: flex;
@@ -771,7 +779,7 @@ footer {
     align-items: center;
     gap: 10px;
     width: 100%;
-    max-width: 520px;
+    max-width: 480px;
   }
 
   .footer-newsletter {
@@ -782,8 +790,20 @@ footer {
   }
 
   .footer-right {
+    min-width: 0;
     grid-column: 3;
     justify-self: end;
+    align-self: center;
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .footer-right .footer-newsletter {
+    width: min(100%, 390px);
+    min-width: 0;
+    margin-top: 24px;
+    text-align: right;
+    align-items: flex-end;
   }
 }
 
@@ -792,6 +812,8 @@ footer {
   display: flex;
   gap: 18px;
   align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 .footer-nav a {
   color: var(--muted);
@@ -934,6 +956,11 @@ footer {
   .footer-newsletter {
     margin-top: 8px;
     min-width: 0;
+  }
+
+  .footer-right .footer-newsletter {
+    text-align: center;
+    align-items: center;
   }
 
   .footer-right {
@@ -1131,6 +1158,10 @@ button.danger:hover {
 .card:hover {
   box-shadow: var(--shadow-lg);
   border-color: var(--accent-light);
+}
+
+a.nav-link[href="/admin/vitals.html"] {
+  display: none !important;
 }
 
 .card h2 {

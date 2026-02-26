@@ -77,6 +77,23 @@ router.get("/:postId", async (req, res) => {
     .select("authorName authorAvatar text createdAt userId reactions reactionUsers spamScore")
     .lean();
 
+  const userIds = [...new Set(
+    comments
+      .map(comment => String(comment?.userId || "").trim())
+      .filter(Boolean)
+  )];
+
+  const users = userIds.length
+    ? await User.find({ _id: { $in: userIds } }).select("_id avatarUrl").lean()
+    : [];
+
+  const avatarByUserId = new Map();
+  users.forEach((user) => {
+    const key = String(user?._id || "").trim();
+    if (!key) return;
+    avatarByUserId.set(key, String(user?.avatarUrl || "").trim());
+  });
+
   const viewerId = getViewerId(req);
 
   const mapped = comments.map(comment => {
@@ -89,7 +106,7 @@ router.get("/:postId", async (req, res) => {
       _id: comment._id,
       userId: comment.userId,
       authorName: comment.authorName,
-      authorAvatar: comment.authorAvatar,
+      authorAvatar: avatarByUserId.get(String(comment?.userId || "").trim()) || String(comment.authorAvatar || "").trim(),
       text: comment.text,
       createdAt: comment.createdAt,
       reactions: {

@@ -18,7 +18,7 @@
       <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
       <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
       <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
-      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Access</a>
       <a href="/admin/profile.html" class="nav-link">Profile</a>
       <button id="theme-toggle"></button>
     </nav>
@@ -36,7 +36,7 @@
     <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
     <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
     <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
-    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Access</a>
     <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
     <div class="mobile-theme-row">
       <span>Theme</span>
@@ -55,7 +55,7 @@
         <h2>Account</h2>
         <form id="profileForm">
           <div class="profile-avatar">
-            <img id="avatarPreview" src="" alt="Profile avatar" />
+            <img id="avatarPreview" src="../assets/default-avatar.svg" alt="Profile avatar" />
             <div class="avatar-upload">
               <input type="file" id="avatar" accept="image/*" />
               <input type="hidden" id="avatarUrl" />
@@ -212,7 +212,18 @@ function updateThemeLabel() {
 window.addEventListener('DOMContentLoaded', updateThemeLabel);
 
 const statusEl = document.getElementById("status");
+const DEFAULT_AVATAR_SRC = "../assets/default-avatar.svg";
 let statusHideTimer = null;
+
+function setAvatarPreview(url) {
+  const avatarPreview = document.getElementById("avatarPreview");
+  if (!avatarPreview) return;
+  avatarPreview.onerror = () => {
+    avatarPreview.onerror = null;
+    avatarPreview.src = DEFAULT_AVATAR_SRC;
+  };
+  avatarPreview.src = String(url || "").trim() || DEFAULT_AVATAR_SRC;
+}
 
 function showStatus(message, type) {
   if (!statusEl) return;
@@ -262,8 +273,7 @@ async function loadProfile() {
   document.getElementById("twitterUrl").value = profile.twitterUrl || "";
   document.getElementById("tiktokUrl").value = profile.tiktokUrl || "";
 
-  const avatarPreview = document.getElementById("avatarPreview");
-  avatarPreview.src = profile.avatarUrl || "https://via.placeholder.com/72";
+  setAvatarPreview(profile.avatarUrl);
 }
 
 async function uploadAvatar(file) {
@@ -293,7 +303,7 @@ document.getElementById("avatar").addEventListener("change", async e => {
   if (!url) return;
 
   document.getElementById("avatarUrl").value = url;
-  document.getElementById("avatarPreview").src = url;
+  setAvatarPreview(url);
   showStatus("Avatar uploaded. Save profile to apply.", "success");
 });
 

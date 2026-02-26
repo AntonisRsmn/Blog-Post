@@ -53,6 +53,30 @@
   box-shadow: none;
 }
 
+.category-filter-search-wrap {
+  margin-bottom: 10px;
+}
+
+.category-filter-search {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text);
+  font-size: 0.84rem;
+}
+
+.category-filter-search::placeholder {
+  color: var(--text-muted);
+}
+
+.category-filter-search:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-light);
+}
+
 .category-filters {
   display: flex;
   flex-direction: column;
@@ -935,6 +959,93 @@
   font-weight: 600;
 }
 
+.calendar-jump {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.calendar-event-search {
+  width: 100%;
+  padding: 7px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text);
+  font-size: 0.8rem;
+}
+
+.calendar-event-search::placeholder {
+  color: var(--text-muted);
+}
+
+.calendar-event-search:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.calendar-event-search-btn {
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.calendar-jump-status {
+  min-height: 1.1em;
+  font-size: 0.73rem;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.calendar-jump-status.is-error {
+  color: #d96a6a;
+}
+
+.calendar-event-suggestions {
+  margin-top: -2px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  max-height: 170px;
+  overflow: auto;
+}
+
+.calendar-event-suggestion-item {
+  width: 100%;
+  text-align: left;
+  padding: 8px 10px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.calendar-event-suggestion-item:last-child {
+  border-bottom: 0;
+}
+
+.calendar-event-suggestion-item:hover,
+.calendar-event-suggestion-item:focus {
+  outline: none;
+  background: var(--accent-light);
+  color: var(--text);
+}
+
+.calendar-event-suggestion-empty {
+  padding: 8px 10px;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
 .calendar-weekdays,
 .calendar-days {
   display: grid;
@@ -969,6 +1080,26 @@
 .calendar-day.has-release {
   background: var(--accent-light);
   color: var(--text);
+  cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, transform 0.15s ease;
+}
+
+.calendar-day.has-release:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.calendar-day.is-selected-date {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 28%, transparent), color-mix(in srgb, var(--accent) 18%, transparent));
+  color: var(--text);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent), 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+  font-weight: 700;
+}
+
+.calendar-day.is-jump-target {
+  box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+  border-color: var(--accent);
 }
 
 .calendar-day.has-release::after {
@@ -1012,6 +1143,19 @@
   padding: 8px;
   border-radius: 8px;
   background: var(--bg-secondary);
+  border: 1px solid transparent;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+
+.release-item.is-jump-target {
+  border: 1px solid var(--accent);
+  background: var(--accent-light);
+}
+
+.release-item.is-selected-date {
+  border: 1px solid var(--accent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 14%, transparent), var(--accent-light));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 28%, transparent);
 }
 
 .release-item-name {

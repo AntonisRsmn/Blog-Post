@@ -19,7 +19,7 @@
       <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
       <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
       <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
-      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Access</a>
       <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
       <button id="theme-toggle"></button>
     </nav>
@@ -37,7 +37,7 @@
     <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
     <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
     <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
-    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Access</a>
     <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
     <div class="mobile-theme-row">
       <span>Theme</span>
@@ -92,6 +92,9 @@
               <h3>Filters</h3>
               <button type="button" id="clear-filters" class="clear-filters">Clear</button>
             </div>
+            <div class="category-filter-search-wrap">
+              <input type="search" id="category-filter-search" class="category-filter-search" placeholder="Search categories..." aria-label="Search categories" />
+            </div>
             <div id="category-filters" class="category-filters">
               <div class="loading">Loading categories...</div>
             </div>
@@ -107,6 +110,12 @@
             </div>
           </div>
           <div id="calendar-month" class="calendar-month"></div>
+          <div class="calendar-jump">
+            <input type="search" id="calendar-event-search" class="calendar-event-search" placeholder="Search event..." aria-label="Search event and jump" autocomplete="off" />
+            <button type="button" id="calendar-event-search-btn" class="calendar-event-search-btn">Go</button>
+          </div>
+          <div id="calendar-event-suggestions" class="calendar-event-suggestions" hidden></div>
+          <div id="calendar-jump-status" class="calendar-jump-status" aria-live="polite"></div>
           <div class="calendar-weekdays">
             <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
           </div>

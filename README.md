@@ -7,8 +7,12 @@ This repository contains a full-stack blog platform with public content, user ac
 ### Public visitors
 - Browse published posts on the home page
 - Search and filter by category
+- Use filter search inputs on home and author pages to quickly narrow category options
 - Open full post pages with rich Editor.js content (text, images, embeds, quotes)
 - View release calendar events
+- Search release events from the calendar jump input and jump directly to matching month/day
+- Click any calendar day to filter the release list to that specific date
+- Use themed custom event suggestions in the calendar jump input (instead of browser-native gray selector)
 - View a rotating release/event strip below the navbar on home and author pages (today first, then upcoming)
 - View featured post rotator on home page (manual admin picks, up to 6)
 - Open dedicated author pages with author hero/profile links and author-only post listings
@@ -24,7 +28,7 @@ This repository contains a full-stack blog platform with public content, user ac
 
 ### Staff/Admin users
 - Access admin pages (`dashboard`, `posts`, `events`, `categories`, `staff`, `profile`)
-- Access Core Web Vitals page (`/admin/vitals.html`) from navbar (staff/admin visibility)
+- Access Core Web Vitals page (`/admin/vitals.html`) directly (nav link may be hidden by current UI configuration)
 - Create/edit/delete posts (staff ownership rules apply for post edit/delete)
 - Upload images for content
 - Manage release calendar events
@@ -57,6 +61,14 @@ This repository contains a full-stack blog platform with public content, user ac
 ---
 
 ## Key behavior notes
+- Admin sessions use short access-token TTL (`JWT_ACCESS_TTL`, default 15m) to force periodic re-authentication.
+- Login lockout is enabled (`LOGIN_MAX_ATTEMPTS`, `LOCK_MINUTES`) after repeated invalid credentials.
+- Access protections block self-admin removal/demotion and block env-managed admin changes (`STAFF_EMAILS`).
+- Cookie consent supports Essential/Analytics/Ads preferences and includes a dedicated cookie policy page (`/cookies.html`).
+- Author links and display names now prioritize first + last name.
+- Author page lookup supports full-name links and preserves profile avatar resolution.
+- Home and author filters include category search plus calendar event jump with custom themed suggestions.
+- Calendar day selection applies a day-specific release filter in the event list.
 - Category names are normalized to uppercase.
 - Category deletion removes matching category values from posts case-insensitively.
 - Category ownership is stored (`createdBy`) for delete permission checks in staff flows.
@@ -67,6 +79,7 @@ This repository contains a full-stack blog platform with public content, user ac
 - Admin dashboard calendar panel shows latest 10 events.
 - In dashboard event creation, posts that already have calendar assignment are hidden from the dropdown (except when editing that event).
 - Unknown non-API routes return the custom frontend 404 page, while unknown API routes return JSON 404.
+- Operational health endpoint is available at `/health`.
 - Newsletter subscriptions are captured from footer form on home/post flows and upserted by email (no duplicates).
 - Mobile footer places newsletter above the rest of footer content; desktop keeps balanced three-column layout.
 - Profile page “Profile Links” section uses a 3x2 desktop grid (3 links on first row, 3 on second) and stacks to one column on mobile.
@@ -82,12 +95,27 @@ This repository contains a full-stack blog platform with public content, user ac
 
 Minimum:
 - `PORT`
+- `PORT_FALLBACK_TRIES`
 - `MONGO_URI`
 - `JWT_SECRET` (must be at least 32 characters)
 - `CLOUDINARY_CLOUD_NAME`
 - `CLOUDINARY_API_KEY`
 - `CLOUDINARY_API_SECRET`
 - `STAFF_EMAILS`
+
+Auth/security tuning:
+- `JWT_ACCESS_TTL` (example: `15m`)
+- `JWT_REFRESH_TTL` (reserved)
+- `BCRYPT_ROUNDS`
+- `COOKIE_SECURE`
+- `COOKIE_SAMESITE`
+- `LOGIN_MAX_ATTEMPTS`
+- `LOCK_MINUTES`
+
+Smoke test env vars:
+- `SMOKE_BASE_URL`
+- `SMOKE_ADMIN_EMAIL`
+- `SMOKE_ADMIN_PASSWORD`
 
 Optional AI configuration:
 - `AI_PROVIDER=groq|openai|auto`
@@ -108,6 +136,7 @@ If no AI key is configured, the app returns a local fallback summary.
 
 Expected startup logs:
 - `Server running on port ...`
+- `Server running on fallback port ...` (when base port is busy)
 - `MongoDB connected`
 
 ---
@@ -163,6 +192,7 @@ If no ads appear immediately, this is normal while account/site/ad-unit propagat
 ## Routes overview
 
 ### Public API
+- `GET /health`
 - `GET /api/posts?list=1`
 - `GET /api/posts/by-id/:id`
 - `GET /api/posts/by-slug?slug=...`
@@ -218,3 +248,9 @@ If no ads appear immediately, this is normal while account/site/ad-unit propagat
 - Never commit `.env`.
 - Rotate secrets immediately if exposed (`JWT_SECRET`, DB credentials, Cloudinary secrets, AI API keys).
 - On stale behavior in dev, ensure only one Node server process is running, then hard-refresh browser (`Ctrl+F5`).
+
+---
+
+## Maintenance scripts
+- `npm run smoke:test` → auth/staff smoke tests (login, lockout, self-remove blocked, env-admin blocked)
+- `npm run migrate:authors-fullname` → one-time/repeatable post-author display migration to full names

@@ -112,13 +112,36 @@ router.post("/", auth, requireStaff, async (req, res) => {
     return res.status(400).json({ error: "Invalid email format." });
   }
 
+  const requester = await User.findById(req.user?.userId).select("email");
+  const requesterEmail = normalizeEmail(requester?.email || req.user?.email);
+  const envStaffEmails = getEnvStaffEmails();
+
+  if (envStaffEmails.includes(email) && role !== "admin") {
+    return res.status(400).json({
+      error: "This admin is managed by STAFF_EMAILS and cannot be changed here."
+    });
+  }
+
+  if (requesterEmail && email === requesterEmail && role !== "admin") {
+    return res.status(400).json({
+      error: "You cannot remove your own admin access."
+    });
+  }
+
+  const existingUser = await User.findOne({ email }).select("_id");
+  if (!existingUser) {
+    return res.status(404).json({
+      error: "This email has no account. Please create an account first."
+    });
+  }
+
   await StaffAccess.findOneAndUpdate(
     { email },
     { email, role },
     { upsert: true, new: true, setDefaultsOnInsert: true }
   );
 
-  await User.updateMany({ email }, { $set: { role } });
+  await User.updateOne({ _id: existingUser._id }, { $set: { role } });
 
   res.json({ success: true, email, role });
 });
@@ -127,6 +150,12 @@ router.delete("/:email", auth, requireStaff, async (req, res) => {
   const email = normalizeEmail(decodeURIComponent(req.params.email));
   if (!email) {
     return res.status(400).json({ error: "Email is required." });
+  }
+
+  const requester = await User.findById(req.user?.userId).select("email");
+  const requesterEmail = normalizeEmail(requester?.email || req.user?.email);
+  if (requesterEmail && requesterEmail === email) {
+    return res.status(400).json({ error: "You cannot remove your own admin access." });
   }
 
   const envStaffEmails = getEnvStaffEmails();

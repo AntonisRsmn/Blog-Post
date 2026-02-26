@@ -1,7 +1,9 @@
 {
   "scripts": {
     "start": "node server/server.js",
-    "build": "npm install"
+    "build": "npm install",
+    "smoke:test": "node --test tests/smoke-auth-staff.test.mjs",
+    "migrate:authors-fullname": "node scripts/migrate-post-authors-to-fullname.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

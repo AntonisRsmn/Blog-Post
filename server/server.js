@@ -22,14 +22,37 @@ const newsletterRoutes = require("./routes/newsletter");
 
 const app = express();
 
-const requiredEnv = ["MONGO_URI", "JWT_SECRET"];
-const missingEnv = requiredEnv.filter(name => !process.env[name]);
-if (missingEnv.length) {
-  throw new Error(`Missing required environment variables: ${missingEnv.join(", ")}`);
+function parsePositiveInt(value, fallback) {
+  const parsed = Number.parseInt(String(value || "").trim(), 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) return fallback;
+  return parsed;
 }
 
-if (String(process.env.JWT_SECRET || "").length < 32) {
-  throw new Error("JWT_SECRET must be at least 32 characters long");
+function validateStartupConfig() {
+  const requiredEnv = ["MONGO_URI", "JWT_SECRET"];
+  const missingEnv = requiredEnv.filter(name => !String(process.env[name] || "").trim());
+  const issues = [];
+
+  if (missingEnv.length) {
+    issues.push(`Missing required environment variables: ${missingEnv.join(", ")}`);
+  }
+
+  if (String(process.env.JWT_SECRET || "").length < 32) {
+    issues.push("JWT_SECRET must be at least 32 characters long");
+  }
+
+  return {
+    ok: issues.length === 0,
+    issues,
+    missingEnv
+  };
+}
+
+const startupValidation = validateStartupConfig();
+if (!startupValidation.ok) {
+  console.error("Startup validation failed:");
+  startupValidation.issues.forEach(issue => console.error(`- ${issue}`));
+  process.exit(1);
 }
 
 app.disable("x-powered-by");
@@ -107,59 +130,87 @@ app.use("/api/staff", staffRoutes);
 app.use("/api/metrics", metricsRoutes);
 app.use("/api/newsletter", newsletterRoutes);
 
+app.get("/health", (req, res) => {
+  const dbReadyState = mongoose.connection.readyState;
+  const dbStateLabel = dbReadyState === 1
+    ? "connected"
+    : dbReadyState === 2
+      ? "connecting"
+      : dbReadyState === 3
+        ? "disconnecting"
+        : "disconnected";
+
+  const healthy = startupValidation.ok && dbReadyState === 1;
+  return res.status(healthy ? 200 : 503).json({
+    status: healthy ? "ok" : "degraded",
+    uptimeSeconds: Math.round(process.uptime()),
+    timestamp: new Date().toISOString(),
+    checks: {
+      startupConfig: startupValidation.ok ? "ok" : "failed",
+      database: dbStateLabel
+    }
+  });
+});
+
 app.get("/sitemap.xml", async (req, res) => {
-  const host = req.get("host");
-  const configuredBase = String(process.env.SITE_URL || "").trim();
-  const fallbackBase = `${req.protocol}://${host}`;
-  const baseUrl = (configuredBase || fallbackBase).replace(/\/$/, "");
+  try {
+    const host = req.get("host");
+    const configuredBase = String(process.env.SITE_URL || "").trim();
+    const fallbackBase = `${req.protocol}://${host}`;
+    const baseUrl = (configuredBase || fallbackBase).replace(/\/$/, "");
 
-  const staticPaths = ["/", "/privacy.html", "/tos.html", "/post.html"];
+    const staticPaths = ["/", "/privacy.html", "/tos.html"];
 
-  const posts = await Post.find({ published: true })
-    .select("slug createdAt updatedAt")
-    .sort({ updatedAt: -1 })
-    .lean();
+    const posts = await Post.find({ published: true })
+      .select("slug createdAt updatedAt")
+      .sort({ updatedAt: -1 })
+      .lean();
 
-  const xmlEscape = (value) => String(value || "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\"/g, "&quot;")
-    .replace(/'/g, "&apos;");
+    const xmlEscape = (value) => String(value || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/\"/g, "&quot;")
+      .replace(/'/g, "&apos;");
 
-  const urls = [];
+    const nowIso = new Date().toISOString();
+    const urls = [];
 
-  staticPaths.forEach((pathName) => {
-    urls.push({
-      loc: `${baseUrl}${pathName}`,
-      lastmod: new Date().toISOString()
+    staticPaths.forEach((pathName) => {
+      urls.push({
+        loc: `${baseUrl}${pathName}`,
+        lastmod: nowIso
+      });
     });
-  });
 
-  posts.forEach((post) => {
-    const slug = String(post?.slug || "").trim();
-    if (!slug) return;
-    const lastmodSource = post?.updatedAt || post?.createdAt || new Date();
-    urls.push({
-      loc: `${baseUrl}/post.html?slug=${encodeURIComponent(slug)}`,
-      lastmod: new Date(lastmodSource).toISOString()
+    posts.forEach((post) => {
+      const slug = String(post?.slug || "").trim();
+      if (!slug) return;
+      const lastmodSource = post?.updatedAt || post?.createdAt || new Date();
+      urls.push({
+        loc: `${baseUrl}/post.html?slug=${encodeURIComponent(slug)}`,
+        lastmod: new Date(lastmodSource).toISOString()
+      });
     });
-  });
 
-  const body = [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    ...urls.map((entry) => [
-      "  <url>",
-      `    <loc>${xmlEscape(entry.loc)}</loc>`,
-      `    <lastmod>${xmlEscape(entry.lastmod)}</lastmod>`,
-      "  </url>"
-    ].join("\n")),
-    "</urlset>"
-  ].join("\n");
+    const body = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      ...urls.map((entry) => [
+        "  <url>",
+        `    <loc>${xmlEscape(entry.loc)}</loc>`,
+        `    <lastmod>${xmlEscape(entry.lastmod)}</lastmod>`,
+        "  </url>"
+      ].join("\n")),
+      "</urlset>"
+    ].join("\n");
 
-  res.setHeader("Content-Type", "application/xml; charset=UTF-8");
-  return res.status(200).send(body);
+    res.setHeader("Content-Type", "application/xml; charset=UTF-8");
+    return res.status(200).send(body);
+  } catch (error) {
+    console.error("Sitemap generation failed", error);
+    return res.status(500).type("application/xml").send('<?xml version="1.0" encoding="UTF-8"?><error>unavailable</error>');
+  }
 });
 
 // Serve frontend
@@ -251,10 +302,55 @@ app.use((err, req, res, next) => {
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("MongoDB connected"))
-  .catch(console.error);
+  .catch((error) => {
+    console.error("MongoDB connection failed during startup", error);
+  });
+
+mongoose.connection.on("error", (error) => {
+  console.error("MongoDB runtime error", error);
+});
+
+mongoose.connection.on("disconnected", () => {
+  console.warn("MongoDB disconnected");
+});
 
 // Server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
-});
+const BASE_PORT = parsePositiveInt(process.env.PORT, 8080);
+const PORT_FALLBACK_TRIES = parsePositiveInt(process.env.PORT_FALLBACK_TRIES, 0);
+
+function listenWithFallback(startPort, retriesLeft) {
+  const server = app.listen(startPort, () => {
+    if (startPort === BASE_PORT) {
+      console.log("Server running on port", startPort);
+    } else {
+      console.log(`Server running on fallback port ${startPort} (requested ${BASE_PORT})`);
+    }
+  });
+
+  server.on("error", (error) => {
+    if (error?.code === "EADDRINUSE" && retriesLeft > 0) {
+      console.warn(`Port ${startPort} is busy. Trying port ${startPort + 1}...`);
+      listenWithFallback(startPort + 1, retriesLeft - 1);
+      return;
+    }
+
+    if (error?.code === "EADDRINUSE") {
+        console.warn(`Port ${startPort} is busy and no configured fallback ports remain. Trying an OS-assigned free port...`);
+        const ephemeralServer = app.listen(0, () => {
+          const address = ephemeralServer.address();
+          const resolvedPort = typeof address === "object" && address ? address.port : "unknown";
+          console.log(`Server running on OS-assigned port ${resolvedPort} (requested ${BASE_PORT})`);
+        });
+
+        ephemeralServer.on("error", (ephemeralError) => {
+          console.error("Server failed to start on OS-assigned port", ephemeralError);
+          process.exit(1);
+        });
+    }
+
+    console.error("Server failed to start", error);
+    process.exit(1);
+  });
+}
+
+listenWithFallback(BASE_PORT, PORT_FALLBACK_TRIES);

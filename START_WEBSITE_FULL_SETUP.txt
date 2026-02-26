@@ -47,9 +47,16 @@ If install fails:
 Create .env in project root with:
 
 PORT=3000
+PORT_FALLBACK_TRIES=10
 MONGO_URI=<your_mongodb_connection_string>
 JWT_SECRET=<very_long_random_secret_at_least_32_chars>
-ADMIN_PASSWORD_HASH=<bcrypt_hash>
+JWT_ACCESS_TTL=15m
+JWT_REFRESH_TTL=30d
+BCRYPT_ROUNDS=12
+COOKIE_SECURE=false
+COOKIE_SAMESITE=lax
+LOGIN_MAX_ATTEMPTS=5
+LOCK_MINUTES=15
 CLOUDINARY_CLOUD_NAME=<cloud_name>
 CLOUDINARY_API_KEY=<api_key>
 CLOUDINARY_API_SECRET=<api_secret>
@@ -57,6 +64,7 @@ STAFF_EMAILS=<comma_separated_admin_emails>
 
 IMPORTANT:
 - JWT_SECRET must be at least 32 characters
+- `PORT_FALLBACK_TRIES` controls how many next ports are attempted if the base port is busy
 - Do NOT wrap values in quotes unless needed
 - Do NOT commit .env to git
 
@@ -72,6 +80,7 @@ From project root:
 
 Expected output:
 - Server running on port 3000
+- or: Server running on fallback port <port> (requested 3000)
 - MongoDB connected
 
 Open in browser:
@@ -85,8 +94,8 @@ A) Error: "JWT_SECRET must be at least 32 characters long"
 - Fix JWT_SECRET in .env (length >= 32)
 
 B) Port already in use
-- Stop old node processes
-- Restart with npm start
+- Server automatically retries next ports up to PORT_FALLBACK_TRIES
+- If needed, stop old node processes and restart with npm start
 
 C) Mongo connection error
 - Check MONGO_URI
@@ -122,9 +131,15 @@ Start command:
 
 Environment variables in Render:
 - PORT=3000 (or Render-provided PORT)
+- PORT_FALLBACK_TRIES
 - MONGO_URI
 - JWT_SECRET (>= 32 chars)
-- ADMIN_PASSWORD_HASH
+- JWT_ACCESS_TTL
+- BCRYPT_ROUNDS
+- COOKIE_SECURE
+- COOKIE_SAMESITE
+- LOGIN_MAX_ATTEMPTS
+- LOCK_MINUTES
 - CLOUDINARY_CLOUD_NAME
 - CLOUDINARY_API_KEY
 - CLOUDINARY_API_SECRET
@@ -140,6 +155,7 @@ If Render log shows JWT error:
 After deploy, verify:
 
 - Home page loads
+- /health returns status JSON (200 when healthy)
 - Posts API works (/api/posts)
 - Categories API works (/api/categories)
 - Login works
@@ -148,11 +164,16 @@ After deploy, verify:
 - Home release/event strip appears below navbar and rotates correctly
 - Home featured rotator renders correctly
 - Author page loads with author hero and author-only listings
+- Author links resolve by full-name display and avatar appears correctly on author page
 - Posts with no image show default fallback image
 - Admin delete actions show confirmation popup before delete
 - Admin status messages auto-hide after ~5 seconds
 - Dashboard calendar section shows latest 10 events
 - In dashboard "New Event", posts already assigned to calendar are hidden from the selector
+- Home and author filter sections include category-search inputs and work correctly
+- Calendar jump input finds events by title and jumps to matching month/day
+- Clicking a calendar day filters release list by that selected day
+- Calendar jump suggestion list is themed/custom (not browser gray native dropdown)
 - Analytics dashboard shows Top 10 posts/categories/authors with rank numbers
 - Analytics "Show all" pages work and search keeps original rank numbers
 - Broken-link Checker page works (/admin/analytics-links.html)
@@ -161,12 +182,14 @@ After deploy, verify:
 - Newsletter admin list works (/admin/newsletter.html): search + remove subscriber + CSV/copy
 - Profile page links section shows 3 links on first row and 3 on second row (desktop), and stacks on mobile
 - Staff/Admin navbar shows Vitals link across admin and shared/public pages where staff links exist
+- Cookie preference modal includes Cookie Policy link and /cookies.html page is reachable
 - Post comments show date + hour:minute timestamp
 
 --------------------------------------------------
 10) QUICK HEALTH TESTS
 --------------------------------------------------
 In browser:
+- /health
 - /api/posts?list=1
 - /api/categories
 - /api/posts/manage/analytics
@@ -236,6 +259,23 @@ Current summary behavior:
   - GET /api/posts/manage/featured
   - POST /api/posts/manage/featured
   - DELETE /api/posts/manage/featured/:id
+
+--------------------------------------------------
+14) SMOKE TESTS (RECOMMENDED BEFORE RELEASE)
+--------------------------------------------------
+Set in .env (or terminal):
+- SMOKE_BASE_URL=http://127.0.0.1:3000
+- SMOKE_ADMIN_EMAIL=<admin email>
+- SMOKE_ADMIN_PASSWORD=<admin password>
+
+Run:
+- npm run smoke:test
+
+What it validates:
+- Admin login works
+- Lockout triggers after repeated invalid logins
+- Self-admin removal is blocked
+- Env-managed admin demotion is blocked
 
 --------------------------------------------------
 END

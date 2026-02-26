@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cookie Policy | Rusman</title>
+  <link rel="stylesheet" href="css/global.css" />
+  <style>
+    .legal-wrap {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    .legal-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 24px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .legal-card h1 {
+      font-size: 1.9rem;
+      color: var(--text);
+      margin: 0;
+    }
+
+    .legal-card > header {
+      position: static;
+      top: auto;
+      z-index: auto;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+      padding: 0;
+    }
+
+    .legal-meta {
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+
+    .legal-card section {
+      display: grid;
+      gap: 8px;
+    }
+
+    .legal-card h2 {
+      font-size: 1.08rem;
+      margin: 0;
+      color: var(--text);
+    }
+
+    .legal-card p,
+    .legal-card li {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      line-height: 1.65;
+    }
+
+    .legal-card ul {
+      margin: 0;
+      padding-left: 18px;
+      display: grid;
+      gap: 6px;
+    }
+
+    @media (max-width: 768px) {
+      .legal-card {
+        padding: 18px;
+      }
+
+      .legal-card h1 {
+        font-size: 1.55rem;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <a href="/" class="logo">Rusman</a>
+    <button type="button" id="mobile-menu-toggle" class="mobile-menu-toggle" aria-label="Open menu" aria-controls="mobile-sidebar" aria-expanded="false">☰</button>
+    <nav>
+      <a href="/" class="nav-link">Home</a>
+      <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+      <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+      <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
+      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Access</a>
+      <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
+      <button id="theme-toggle"></button>
+    </nav>
+  </div>
+</header>
+
+<div id="mobile-sidebar-backdrop" class="mobile-sidebar-backdrop" hidden></div>
+<aside id="mobile-sidebar" class="mobile-sidebar" aria-label="Mobile navigation" aria-hidden="true">
+  <div class="mobile-sidebar-head">
+    <strong>Menu</strong>
+    <button type="button" id="mobile-sidebar-close" class="mobile-sidebar-close" aria-label="Close menu">✕</button>
+  </div>
+  <nav class="mobile-sidebar-nav">
+    <a href="/" class="nav-link">Home</a>
+    <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
+    <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
+    <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
+    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Access</a>
+    <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
+    <div class="mobile-theme-row">
+      <span>Theme</span>
+      <button type="button" id="mobile-theme-toggle" class="mobile-theme-switch" aria-label="Toggle theme"></button>
+    </div>
+  </nav>
+</aside>
+
+<main>
+  <div class="legal-wrap">
+    <article class="legal-card">
+      <header>
+        <h1>Cookie Policy</h1>
+        <p class="legal-meta">Effective date: February 26, 2026</p>
+      </header>
+
+      <section>
+        <h2>1. What are cookies?</h2>
+        <p>Cookies are small text files stored in your browser to help websites work properly, remember settings, and measure performance.</p>
+      </section>
+
+      <section>
+        <h2>2. What we collect</h2>
+        <ul>
+          <li><strong>Essential cookies:</strong> required for core functionality such as authentication and keeping you signed in.</li>
+          <li><strong>Analytics preference:</strong> your consent choice for analytics tracking (stored in your browser local storage).</li>
+          <li><strong>Ads preference:</strong> your consent choice for ad personalization (stored in your browser local storage).</li>
+          <li><strong>Consent timestamp:</strong> when your cookie choices were saved.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>3. Cookie categories</h2>
+        <ul>
+          <li><strong>Essential (always on):</strong> needed for secure login, session handling, and basic site operation.</li>
+          <li><strong>Analytics (optional):</strong> helps us measure usage and improve page performance.</li>
+          <li><strong>Ads (optional):</strong> used for ad-related behavior when enabled.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>4. How we store your preferences</h2>
+        <p>Your cookie preferences are saved in your browser under a local storage key and can be changed anytime from the "Cookie settings" control (footer) or the cookie preference modal.</p>
+      </section>
+
+      <section>
+        <h2>5. How to change or withdraw consent</h2>
+        <p>You can update your choices at any time via the cookie preferences popup and this policy is linked directly from that flow. You can also clear browser cookies/local storage from your browser settings.</p>
+      </section>
+
+      <section>
+        <h2>6. Third-party services</h2>
+        <p>Some features (such as ads or analytics) may rely on third-party services when enabled. Their technologies are subject to their own privacy/cookie policies.</p>
+      </section>
+
+      <section>
+        <h2>7. Contact</h2>
+        <p>For cookie or privacy questions, contact us at <a href="mailto:info@rusman.gr">info@rusman.gr</a>.</p>
+      </section>
+    </article>
+  </div>
+
+  <section class="ad-block" aria-label="Advertisement">
+    <p class="ad-label">Advertisement</p>
+    <ins
+      class="adsbygoogle ad-slot"
+      style="display:block"
+      data-ad-format="auto"
+      data-full-width-responsive="true"
+      data-adsense-slot-key="genericSlot"
+    ></ins>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-grid">
+    <div class="footer-left">
+      <div class="brand-small">
+        Antonios <span style="color:var(--accent)">Rusman</span>
+      </div>
+      <div class="muted small">© <span id="year"></span> <a href="https://rusman.gr" target="_blank" rel="noopener">Antonios Rusman</a> — All rights reserved.</div>
+    </div>
+
+    <div class="footer-center">
+      <nav class="footer-nav" aria-label="Footer navigation">
+        <a href="/tos.html">Terms of Service</a>
+        <a href="/cookies.html" aria-current="page">Cookie Policy</a>
+        <a href="/privacy.html">Privacy Policy</a>
+      </nav>
+    </div>
+
+    <div class="footer-right" aria-hidden="false">
+      <div class="social" role="list">
+        <a class="social-link" href="mailto:info@rusman.gr" aria-label="Email" role="listitem">
+          <svg viewBox="0 0 24 24" fill="none" width="18" height="18" aria-hidden="true">
+            <path d="M3 6.5h18v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-11z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M21 6.5L12 13 3 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script src="js/theme.js"></script>
+<script src="js/adsense.js"></script>
+<script>
+document.getElementById('year').textContent = new Date().getFullYear();
+</script>
+
+</body>
+</html>

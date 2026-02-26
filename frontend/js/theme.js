@@ -125,6 +125,7 @@ function ensureCookieManageModal() {
         <button type="button" id="cookie-manage-close" class="secondary" aria-label="Close">Close</button>
       </div>
       <p>Choose what you allow. Essential cookies are always enabled.</p>
+      <p><a href="/cookies.html">Cookie Policy: what we collect</a></p>
 
       <div class="cookie-consent-grid">
         <label class="cookie-consent-item">
@@ -787,23 +788,33 @@ function ensureFooterNewsletterBlock() {
   if (!footer) return null;
 
   const center = footer.querySelector('.footer-center');
-  if (!center) return null;
+  const right = footer.querySelector('.footer-right');
+  if (!center || !right) return null;
 
-  let newsletter = center.querySelector('.footer-newsletter');
-  if (newsletter) return newsletter;
+  let newsletter = footer.querySelector('.footer-newsletter');
 
-  newsletter = document.createElement('div');
-  newsletter.className = 'footer-newsletter';
-  newsletter.innerHTML = `
-    <p class="newsletter-title">Subscribe to our Newsletters</p>
-    <form id="newsletter-form" class="newsletter-form" aria-label="Newsletter subscription">
-      <input id="newsletter-email" type="email" placeholder="Subscribe to our Newsletters" autocomplete="email" required />
-      <button type="submit">Subscribe</button>
-    </form>
-    <div id="newsletter-status" class="newsletter-status" aria-live="polite"></div>
-  `;
+  if (!newsletter) {
+    newsletter = document.createElement('div');
+    newsletter.className = 'footer-newsletter';
+    newsletter.innerHTML = `
+      <p class="newsletter-title">Subscribe to our Newsletters</p>
+      <form id="newsletter-form" class="newsletter-form" aria-label="Newsletter subscription">
+        <input id="newsletter-email" type="email" placeholder="Subscribe to our Newsletters" autocomplete="email" required />
+        <button type="submit">Subscribe</button>
+      </form>
+      <div id="newsletter-status" class="newsletter-status" aria-live="polite"></div>
+    `;
+  }
 
-  center.insertBefore(newsletter, center.firstChild);
+  const social = right.querySelector('.social');
+  if (social) {
+    social.remove();
+  }
+
+  if (!right.contains(newsletter)) {
+    right.prepend(newsletter);
+  }
+
   return newsletter;
 }
 

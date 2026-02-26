@@ -574,6 +574,23 @@ html[data-theme="light"] .admin-status.deleted {
   text-overflow: ellipsis;
 }
 
+.staff-entry-subline {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.staff-entry-email {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .staff-role-badge {
   display: inline-flex;
   align-items: center;
@@ -597,6 +614,61 @@ html[data-theme="light"] .admin-status.deleted {
   border: 1px solid var(--border-dark);
   background: var(--bg-secondary);
   color: var(--text-secondary);
+}
+
+.staff-access-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.staff-access-actions button {
+  min-width: 120px;
+}
+
+.staff-access-page .admin-grid {
+  gap: 14px;
+}
+
+.staff-access-page .admin-section {
+  padding: 16px;
+}
+
+.staff-access-page .posts-list {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.staff-access-page .post-item {
+  gap: 12px;
+  padding: 14px 12px;
+}
+
+.staff-access-page .staff-entry-main {
+  gap: 2px;
+}
+
+.staff-access-page .staff-entry-main strong {
+  font-size: 1.02rem;
+}
+
+.staff-access-page .staff-entry-subline {
+  flex-wrap: wrap;
+}
+
+.staff-access-page .staff-access-actions button {
+  padding: 7px 12px;
+  font-size: 0.84rem;
+}
+
+.staff-section-divider {
+  margin: 14px 0 12px;
+  border-top: 1px solid var(--border);
+}
+
+.staff-section-title {
+  margin-top: 0;
 }
 
 .posts-list-actions {
@@ -1156,6 +1228,24 @@ html[data-theme="light"] .admin-status.deleted {
     white-space: normal;
     overflow: visible;
     text-overflow: clip;
+  }
+
+  .staff-access-page .post-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .staff-access-page .staff-access-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .staff-access-page .staff-access-actions button {
+    width: 100%;
+    min-width: 0;
   }
 
 }

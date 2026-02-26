@@ -7,8 +7,12 @@
 ### Δημόσιοι επισκέπτες
 - Προβολή δημοσιευμένων άρθρων στην αρχική
 - Αναζήτηση και φίλτρα κατηγοριών
+- Αναζήτηση μέσα στα φίλτρα κατηγοριών σε home και author page για πιο γρήγορη επιλογή
 - Ανάγνωση πλήρους άρθρου (Editor.js περιεχόμενο: κείμενο, εικόνες, embeds, quotes)
 - Προβολή release calendar
+- Αναζήτηση event τίτλου στο calendar jump πεδίο και άμεσο άλμα στο σωστό month/day
+- Κλικ σε ημέρα του calendar για φιλτράρισμα της release λίστας μόνο στη συγκεκριμένη ημερομηνία
+- Themed custom suggestions στο calendar jump input (χωρίς native γκρι selector)
 - Προβολή μπάρας release/event κάτω από το navbar σε αρχική και author page (πρώτα σημερινά, μετά upcoming)
 - Προβολή featured posts rotator στην αρχική (χειροκίνητη επιλογή admin, έως 6)
 - Πρόσβαση σε author page με author hero/profile links και λίστα άρθρων μόνο του συγκεκριμένου author
@@ -57,6 +61,11 @@
 ---
 
 ## Σημαντικές συμπεριφορές
+- Οι admin συνεδρίες χρησιμοποιούν σύντομο access-token TTL (`JWT_ACCESS_TTL`, default 15m) για περιοδικό re-authentication.
+- Ενεργοποιείται προσωρινό login lockout μετά από επαναλαμβανόμενα invalid credentials (`LOGIN_MAX_ATTEMPTS`, `LOCK_MINUTES`).
+- Υπάρχουν protections που μπλοκάρουν self-admin αφαίρεση/υποβιβασμό και μεταβολές env-managed admins (`STAFF_EMAILS`).
+- Η συγκατάθεση cookies υποστηρίζει Essential/Analytics/Ads και συνδέεται με dedicated Cookie Policy σελίδα (`/cookies.html`).
+- Τα author links/display names δίνουν προτεραιότητα σε first + last name, με σωστό avatar resolution στη σελίδα author.
 - Οι κατηγορίες κανονικοποιούνται σε UPPERCASE.
 - Η διαγραφή κατηγορίας αφαιρεί την κατηγορία case-insensitively και από τα posts.
 - Υπάρχει ownership πεδίο κατηγορίας (`createdBy`) για έλεγχο δικαιωμάτων διαγραφής staff.
@@ -82,12 +91,27 @@
 
 Ελάχιστα:
 - `PORT`
+- `PORT_FALLBACK_TRIES`
 - `MONGO_URI`
 - `JWT_SECRET` (τουλάχιστον 32 χαρακτήρες)
 - `CLOUDINARY_CLOUD_NAME`
 - `CLOUDINARY_API_KEY`
 - `CLOUDINARY_API_SECRET`
 - `STAFF_EMAILS`
+
+Ρυθμίσεις auth/security:
+- `JWT_ACCESS_TTL`
+- `JWT_REFRESH_TTL`
+- `BCRYPT_ROUNDS`
+- `COOKIE_SECURE`
+- `COOKIE_SAMESITE`
+- `LOGIN_MAX_ATTEMPTS`
+- `LOCK_MINUTES`
+
+Smoke test env vars:
+- `SMOKE_BASE_URL`
+- `SMOKE_ADMIN_EMAIL`
+- `SMOKE_ADMIN_PASSWORD`
 
 Προαιρετικά για AI:
 - `AI_PROVIDER=groq|openai|auto`
@@ -108,6 +132,7 @@
 
 Αναμενόμενα logs:
 - `Server running on port ...`
+- `Server running on fallback port ...` (όταν η βασική πόρτα είναι busy)
 - `MongoDB connected`
 
 ---

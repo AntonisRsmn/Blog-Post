@@ -180,7 +180,22 @@ function buildValidatedPostPayload(input, isPartial = false) {
 }
 
 async function getCurrentUser(req) {
-  return User.findById(req.user.userId).select("_id role username email");
+  return User.findById(req.user.userId).select("_id role username email firstName lastName");
+}
+
+function getAuthorDisplayName(user) {
+  const firstName = String(user?.firstName || "").trim();
+  const lastName = String(user?.lastName || "").trim();
+  const fullName = [firstName, lastName].filter(Boolean).join(" ").trim();
+  if (fullName) return fullName;
+
+  const username = String(user?.username || "").trim();
+  if (username) return username;
+
+  const email = String(user?.email || "").trim();
+  if (email) return email;
+
+  return "Unknown";
 }
 
 function userOwnsPost(user, post) {
@@ -192,9 +207,12 @@ function userOwnsPost(user, post) {
 
   if (!post.authorId) {
     const author = String(post.author || "").trim().toLowerCase();
+    const firstName = String(user.firstName || "").trim();
+    const lastName = String(user.lastName || "").trim();
+    const fullName = [firstName, lastName].filter(Boolean).join(" ").trim().toLowerCase();
     const username = String(user.username || "").trim().toLowerCase();
     const email = String(user.email || "").trim().toLowerCase();
-    return !!author && (author === username || author === email);
+    return !!author && (author === fullName || author === username || author === email);
   }
 
   return false;
@@ -1049,7 +1067,7 @@ router.post("/", auth, requireUploaderOrStaff, async (req, res) => {
   const { value, error } = buildValidatedPostPayload(req.body, false);
   if (error) return res.status(400).json({ error });
 
-  const author = user?.username || user?.email || "Unknown";
+  const author = getAuthorDisplayName(user);
   const post = await Post.create({ ...value, author, authorId: user?._id });
   res.json(post);
 });
@@ -1077,7 +1095,7 @@ router.put("/:id", auth, requireUploaderOrStaff, async (req, res) => {
   }
 
   if (!existing.author) {
-    updates.author = user?.username || user?.email || "Unknown";
+    updates.author = getAuthorDisplayName(user);
     updates.authorId = user?._id;
   } else if (!existing.authorId && user.role === "staff") {
     updates.authorId = user._id;

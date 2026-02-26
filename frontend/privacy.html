@@ -89,7 +89,7 @@
       <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
       <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
       <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
-      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Access</a>
       <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
       <button id="theme-toggle"></button>
     </nav>
@@ -107,7 +107,7 @@
     <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
     <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
     <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
-    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Access</a>
     <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
     <div class="mobile-theme-row">
       <span>Theme</span>
@@ -121,7 +121,7 @@
     <article class="legal-card">
       <header>
         <h1>Privacy Policy</h1>
-        <p class="legal-meta">Effective date: February 21, 2026</p>
+        <p class="legal-meta">Effective date: February 26, 2026</p>
       </header>
 
       <section>
@@ -135,6 +135,7 @@
           <li><strong>Account data:</strong> email address, password hash, role, optional username, and optional avatar URL.</li>
           <li><strong>Profile and comments:</strong> profile details you provide and comments you publish (including timestamp and associated user ID).</li>
           <li><strong>Authentication data:</strong> secure authentication cookie used to keep you signed in.</li>
+          <li><strong>Operational analytics:</strong> technical and usage telemetry such as web-vitals submissions, page/performance metrics, and search-miss terms used to improve content discoverability and site reliability.</li>
           <li><strong>Staff content uploads:</strong> image files submitted by authorized staff for post media handling.</li>
           <li><strong>Summary feature input:</strong> when summary generation is requested, article text required for summary generation may be processed by configured AI providers.</li>
         </ul>
@@ -146,6 +147,7 @@
           <li>Create and manage your account.</li>
           <li>Authenticate sessions and protect account access.</li>
           <li>Provide commenting and profile functionality.</li>
+          <li>Analyze aggregate operational metrics and search behavior to improve relevance, performance, and stability.</li>
           <li>Generate article summaries when a user explicitly requests summary generation.</li>
           <li>Moderate content and prevent misuse.</li>
           <li>Operate, maintain, and improve website reliability and security.</li>
@@ -164,7 +166,7 @@
 
       <section>
         <h2>5. Cookies and similar technologies</h2>
-        <p>We use an authentication cookie to keep users signed in. This cookie is configured with security controls such as HttpOnly and SameSite. We do not currently run third-party advertising trackers on this website.</p>
+        <p>We use an authentication cookie to keep users signed in. This cookie is configured with security controls such as HttpOnly and SameSite. We also store cookie consent preferences (essential/analytics/ads) in browser local storage. For full details, see our <a href="/cookies.html">Cookie Policy</a>.</p>
       </section>
 
       <section>
@@ -197,7 +199,9 @@
         <ul>
           <li>Passwords are stored as hashes, not plain text.</li>
           <li>Authentication uses signed tokens and secure cookie settings.</li>
+          <li>Failed login attempts are rate-limited and temporary account lockout is applied after repeated invalid credentials.</li>
           <li>Access controls are applied for staff-only functionality.</li>
+          <li>Admin access protections prevent self-removal and protect environment-managed admins from accidental access removal.</li>
           <li>Reasonable technical and organizational safeguards are used to protect data.</li>
         </ul>
       </section>
@@ -220,6 +224,11 @@
       <section>
         <h2>14. Updates to this Policy</h2>
         <p>We may update this Privacy Policy from time to time. Any updates will be posted on this page with the revised effective date.</p>
+      </section>
+
+      <section>
+        <h2>15. Related policies</h2>
+        <p>You can review related legal pages here: <a href="/tos.html">Terms of Service</a> and <a href="/cookies.html">Cookie Policy</a>.</p>
       </section>
     </article>
   </div>
@@ -247,6 +256,7 @@
     <div class="footer-center">
       <nav class="footer-nav" aria-label="Footer navigation">
         <a href="/tos.html">Terms of Service</a>
+        <a href="/cookies.html">Cookie Policy</a>
         <a href="/privacy.html">Privacy Policy</a>
       </nav>
     </div>

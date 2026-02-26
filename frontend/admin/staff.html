@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Staff Access</title>
+  <title>Access</title>
   <link rel="stylesheet" href="../css/global.css" />
   <link rel="stylesheet" href="../css/admin.css" />
 </head>
@@ -18,7 +18,7 @@
       <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
       <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
       <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
-      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+      <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Access</a>
       <a href="/admin/profile.html" class="nav-link">Profile</a>
       <button id="theme-toggle"></button>
     </nav>
@@ -36,7 +36,7 @@
     <a href="/admin/dashboard.html" class="nav-link" data-staff-only hidden>Dashboard</a>
     <a href="/admin/analytics.html" class="nav-link" data-staff-only hidden>Analytics</a>
     <a href="/admin/vitals.html" class="nav-link" data-staff-only hidden>Vitals</a>
-    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Staff Access</a>
+    <a href="/admin/staff.html" class="nav-link" data-staff-only hidden>Access</a>
     <a href="/admin/login.html" class="nav-link" data-auth-link>Login</a>
     <div class="mobile-theme-row">
       <span>Theme</span>
@@ -46,10 +46,10 @@
 </aside>
 
 <main>
-  <div class="admin-container">
+  <div class="admin-container staff-access-page">
     <div class="admin-page-head">
-      <h1 class="admin-title">Staff Access</h1>
-      <p class="admin-subtitle">Add or remove emails that should have staff permissions. List refreshes automatically.</p>
+      <h1 class="admin-title">Access</h1>
+      <p class="admin-subtitle">Manage admin and user access by email. Lists refresh automatically.</p>
     </div>
 
     <div id="status" class="admin-status" role="status" aria-live="polite"></div>
@@ -62,22 +62,19 @@
             <label for="staffEmail">Email</label>
             <input id="staffEmail" type="email" placeholder="name@example.com" required autocomplete="email" />
           </div>
-          <div class="form-group">
-            <label for="staffRole">Role</label>
-            <select id="staffRole">
-              <option value="admin">Admin</option>
-              <option value="staff">Staff</option>
-            </select>
-          </div>
           <button type="submit">Save Access</button>
         </form>
       </div>
 
       <div class="admin-section">
-        <h2>Current Staff Emails</h2>
+        <h2>Admin Accounts</h2>
+        <ul id="adminList" class="posts-list"></ul>
+
+        <div class="staff-section-divider" aria-hidden="true"></div>
+        <h2 class="staff-section-title">Current Staff Emails</h2>
         <div class="form-group">
           <label for="staffSearch">Search</label>
-          <input id="staffSearch" type="text" placeholder="Search by name, email, or username..." autocomplete="off" />
+          <input id="staffSearch" type="text" placeholder="Search by name or email..." autocomplete="off" />
         </div>
         <ul id="staffList" class="posts-list"></ul>
       </div>
@@ -140,14 +137,20 @@
 document.getElementById("year").textContent = new Date().getFullYear();
 
 const statusEl = document.getElementById("status");
+const adminListEl = document.getElementById("adminList");
 const listEl = document.getElementById("staffList");
 const formEl = document.getElementById("staffForm");
 const emailInput = document.getElementById("staffEmail");
-const roleInput = document.getElementById("staffRole");
 const searchInput = document.getElementById("staffSearch");
 let refreshTimer;
-let allEntries = [];
+let adminEntries = [];
+let staffEntries = [];
 let statusHideTimer = null;
+let currentUserEmail = "";
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
 
 function showStatus(message, type) {
   if (statusHideTimer) {
@@ -155,13 +158,13 @@ function showStatus(message, type) {
     statusHideTimer = null;
   }
   statusEl.textContent = message;
-  statusEl.classList.remove("success", "error", "show");
+  statusEl.classList.remove("success", "error", "deleted", "show");
   if (type) statusEl.classList.add(type);
   statusEl.classList.add("show");
 
   statusHideTimer = setTimeout(() => {
     statusEl.textContent = "";
-    statusEl.classList.remove("success", "error", "show");
+    statusEl.classList.remove("success", "error", "deleted", "show");
     statusHideTimer = null;
   }, 5000);
 }
@@ -172,14 +175,15 @@ function clearStatus() {
     statusHideTimer = null;
   }
   statusEl.textContent = "";
-  statusEl.classList.remove("success", "error", "show");
+  statusEl.classList.remove("success", "error", "deleted", "show");
 }
 
 function getDisplayName(entry) {
   const firstName = entry.user?.firstName || "";
   const lastName = entry.user?.lastName || "";
+  const username = entry.user?.username || "";
   const fullName = `${firstName} ${lastName}`.trim();
-  return fullName || "—";
+  return fullName || username || entry.email || "—";
 }
 
 function entryMatchesQuery(entry, rawQuery) {
@@ -194,17 +198,89 @@ function entryMatchesQuery(entry, rawQuery) {
   return fullName.includes(query) || username.includes(query) || email.includes(query) || role.includes(query);
 }
 
-function createRow(entry) {
+function canModifyEntry(entry) {
+  return entry.source !== "env" && entry.source !== "env+database";
+}
+
+function isEnvManagedAdmin(entry) {
+  return entry?.role === "admin" && (entry?.source === "env" || entry?.source === "env+database");
+}
+
+function isCurrentUserEntry(entry) {
+  const entryEmail = normalizeEmail(entry?.email);
+  return !!entryEmail && !!currentUserEmail && entryEmail === currentUserEmail;
+}
+
+async function changeRole(entry, nextRole) {
+  if (nextRole !== "admin" && isCurrentUserEntry(entry)) {
+    showStatus("You cannot remove your own admin access.", "error");
+    return false;
+  }
+
+  if (nextRole !== "admin" && isEnvManagedAdmin(entry)) {
+    showStatus("This admin is managed by STAFF_EMAILS and cannot be changed here.", "error");
+    return false;
+  }
+
+  const res = await fetch("/api/staff", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: entry.email, role: nextRole })
+  });
+
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}));
+    showStatus(payload.error || "Could not update access role.", "error");
+    return false;
+  }
+
+  return true;
+}
+
+async function removeAccess(entry) {
+  if (isCurrentUserEntry(entry)) {
+    showStatus("You cannot remove your own admin access.", "error");
+    return false;
+  }
+
+  if (isEnvManagedAdmin(entry)) {
+    showStatus("This email is managed by STAFF_EMAILS and cannot be removed here.", "error");
+    return false;
+  }
+
+  const confirmed = window.showDeleteConfirm
+    ? await window.showDeleteConfirm("Are you sure you want to remove this access?")
+    : window.confirm("Are you sure you want to remove this access?");
+  if (!confirmed) return false;
+
+  const res = await fetch(`/api/staff/${encodeURIComponent(entry.email)}`, {
+    method: "DELETE"
+  });
+
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}));
+    showStatus(payload.error || "Could not remove access.", "error");
+    return false;
+  }
+
+  return true;
+}
+
+function createRow(entry, section) {
   const item = document.createElement("li");
   item.className = "post-item";
 
   const meta = document.createElement("div");
   meta.className = "staff-entry-main";
 
-  const headRow = document.createElement("div");
-  headRow.className = "staff-entry-head";
+  const nameEl = document.createElement("strong");
+  nameEl.textContent = getDisplayName(entry);
 
-  const emailEl = document.createElement("strong");
+  const subRow = document.createElement("div");
+  subRow.className = "staff-entry-subline";
+
+  const emailEl = document.createElement("span");
+  emailEl.className = "staff-entry-email";
   emailEl.textContent = entry.email;
 
   const roleEl = document.createElement("span");
@@ -212,46 +288,59 @@ function createRow(entry) {
   roleEl.className = `staff-role-badge ${isStaffRole ? "is-staff" : "is-admin"}`;
   roleEl.textContent = isStaffRole ? "Staff" : "Admin";
 
-  headRow.appendChild(emailEl);
-  headRow.appendChild(roleEl);
-  meta.appendChild(headRow);
+  subRow.appendChild(emailEl);
+  subRow.appendChild(roleEl);
+  meta.appendChild(nameEl);
+  meta.appendChild(subRow);
 
   const actions = document.createElement("div");
-  actions.className = "post-actions";
+  actions.className = "post-item-actions staff-access-actions";
 
-  const removeBtn = document.createElement("button");
-  removeBtn.type = "button";
-  removeBtn.className = "secondary";
-  removeBtn.textContent = "Remove";
-  removeBtn.disabled = entry.source === "env";
-
-  removeBtn.addEventListener("click", async () => {
+  const grantBtn = document.createElement("button");
+  grantBtn.type = "button";
+  grantBtn.className = "secondary";
+  grantBtn.textContent = section === "admins" ? "Set Staff" : "Give Admin";
+  grantBtn.addEventListener("click", async () => {
     clearStatus();
-
-    const confirmed = await window.showDeleteConfirm?.("Are you sure you want to remove this staff email?");
-    if (!confirmed) return;
-
-    const res = await fetch(`/api/staff/${encodeURIComponent(entry.email)}`, {
-      method: "DELETE"
-    });
-
-    if (!res.ok) {
-      const payload = await res.json().catch(() => ({}));
-      showStatus(payload.error || "Could not remove email.", "error");
-      return;
-    }
-
-    showStatus("Staff email removed.", "success");
+    const nextRole = section === "admins" ? "staff" : "admin";
+    const ok = await changeRole(entry, nextRole);
+    if (!ok) return;
+    showStatus("Access updated.", "success");
     await loadStaffEntries();
   });
 
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "danger";
+  removeBtn.textContent = "Remove Access";
+  removeBtn.addEventListener("click", async () => {
+    clearStatus();
+    const ok = await removeAccess(entry);
+    if (!ok) return;
+    showStatus("Access removed.", "deleted");
+    await loadStaffEntries();
+  });
+
+  actions.appendChild(grantBtn);
   actions.appendChild(removeBtn);
   item.appendChild(meta);
   item.appendChild(actions);
   return item;
 }
 
-function renderEntries(entries) {
+function renderAdminEntries(entries) {
+  if (!entries.length) {
+    adminListEl.innerHTML = '<li class="post-item"><div class="post-main"><strong>No admin accounts found.</strong></div></li>';
+    return;
+  }
+
+  adminListEl.innerHTML = "";
+  entries.forEach(entry => {
+    adminListEl.appendChild(createRow(entry, "admins"));
+  });
+}
+
+function renderStaffEntries(entries) {
   const filtered = entries.filter(entry => entryMatchesQuery(entry, searchInput?.value || ""));
 
   if (!filtered.length) {
@@ -261,27 +350,31 @@ function renderEntries(entries) {
 
   listEl.innerHTML = "";
   filtered.forEach(entry => {
-    listEl.appendChild(createRow(entry));
+    listEl.appendChild(createRow(entry, "staff"));
   });
 }
 
 async function loadStaffEntries() {
   const res = await fetch("/api/staff");
   if (!res.ok) {
+    adminListEl.innerHTML = '<li class="post-item"><div class="post-main"><strong>Unable to load admin list.</strong></div></li>';
     listEl.innerHTML = '<li class="post-item"><div class="post-main"><strong>Unable to load staff list.</strong></div></li>';
     return;
   }
 
   const data = await res.json();
   const entries = Array.isArray(data.entries) ? data.entries : [];
-  allEntries = entries;
+  adminEntries = entries.filter(entry => entry.role === "admin");
+  staffEntries = entries.filter(entry => entry.role === "staff");
 
-  if (!entries.length) {
+  renderAdminEntries(adminEntries);
+
+  if (!staffEntries.length) {
     listEl.innerHTML = '<li class="post-item"><div class="post-main"><strong>No staff emails configured.</strong></div></li>';
     return;
   }
 
-  renderEntries(entries);
+  renderStaffEntries(staffEntries);
 }
 
 formEl.addEventListener("submit", async e => {
@@ -289,18 +382,21 @@ formEl.addEventListener("submit", async e => {
   clearStatus();
 
   const email = emailInput.value.trim().toLowerCase();
-  const role = roleInput.value === "staff" ? "staff" : "admin";
   if (!email) return;
 
   const res = await fetch("/api/staff", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, role })
+    body: JSON.stringify({ email, role: "staff" })
   });
 
   if (!res.ok) {
     const payload = await res.json().catch(() => ({}));
-    showStatus(payload.error || "Could not grant staff access.", "error");
+    if (res.status === 404) {
+      showStatus(payload.error || "This email has no account. Please create an account first.", "error");
+      return;
+    }
+    showStatus(payload.error || "Could not grant access.", "error");
     return;
   }
 
@@ -310,10 +406,20 @@ formEl.addEventListener("submit", async e => {
 });
 
 searchInput.addEventListener("input", () => {
-  renderEntries(allEntries);
+  renderStaffEntries(staffEntries);
 });
 
 async function initialize() {
+  try {
+    const profileRes = await fetch("/api/auth/profile", { credentials: "include" });
+    if (profileRes.ok) {
+      const profile = await profileRes.json();
+      currentUserEmail = normalizeEmail(profile?.email);
+    }
+  } catch {
+    currentUserEmail = "";
+  }
+
   await loadStaffEntries();
   refreshTimer = window.setInterval(loadStaffEntries, 10000);
 }

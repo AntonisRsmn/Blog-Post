@@ -2,6 +2,9 @@
 let allPosts = [];
 let releaseEvents = [];
 let calendarViewDate = new Date();
+let calendarJumpDateKey = "";
+let calendarJumpEventTitle = "";
+let calendarSelectedDateKey = "";
 const selectedCategoryFilters = new Set();
 const POSTS_PAGE_SIZE = 7;
 const HOME_BASE_VISIBLE_COUNT = 7;
@@ -11,6 +14,7 @@ let searchVisibleCount = POSTS_PAGE_SIZE;
 let pendingSearchMissTimer = null;
 const SEARCH_MISS_STORAGE_KEY = "search-miss-events-v1";
 const categoryVisibleCounts = new Map();
+let categoryFilterQuery = "";
 let latestPaginationMode = "expand";
 const categoryPaginationModes = new Map();
 let homeRenderVersion = 0;
@@ -292,10 +296,9 @@ function upsertCanonicalLink(href) {
   canonical.setAttribute("href", safeHref);
 }
 
-function updateArticleStructuredData(payload) {
+function upsertStructuredDataScript(scriptId, payload) {
   if (!payload) return;
 
-  const scriptId = "article-structured-data";
   let scriptTag = document.getElementById(scriptId);
   if (!scriptTag) {
     scriptTag = document.createElement("script");
@@ -307,11 +310,50 @@ function updateArticleStructuredData(payload) {
   scriptTag.textContent = JSON.stringify(payload);
 }
 
+function updateArticleStructuredData(payload) {
+  upsertStructuredDataScript("article-structured-data", payload);
+}
+
+function updateBreadcrumbStructuredData(payload) {
+  upsertStructuredDataScript("breadcrumb-structured-data", payload);
+}
+
+function buildCanonicalPostUrl(post) {
+  const slug = String(post?.slug || "").trim();
+  if (slug) {
+    return toSafeHttpUrl(`/post.html?slug=${encodeURIComponent(slug)}`);
+  }
+
+  const id = String(post?._id || "").trim();
+  if (id) {
+    return toSafeHttpUrl(`/post.html?id=${encodeURIComponent(id)}`);
+  }
+
+  return toSafeHttpUrl(window.location.href);
+}
+
+function syncCanonicalHistory(canonicalUrl) {
+  const safeCanonical = toSafeHttpUrl(canonicalUrl);
+  if (!safeCanonical) return;
+
+  try {
+    const current = new URL(window.location.href);
+    const canonical = new URL(safeCanonical);
+    if (current.origin !== canonical.origin) return;
+
+    if (current.pathname !== canonical.pathname || current.search !== canonical.search) {
+      window.history.replaceState(window.history.state || null, "", `${canonical.pathname}${canonical.search}`);
+    }
+  } catch {
+  }
+}
+
 function applyPostSeo(post, options = {}) {
   const title = String(post?.title || "Untitled").trim();
   const author = String(post?.author || "").trim();
-  const articleUrl = String(options?.url || "").trim();
+  const articleUrl = toSafeHttpUrl(String(options?.url || "").trim());
   const imageUrl = String(options?.imageUrl || "").trim();
+  const homeUrl = toSafeHttpUrl("/");
 
   const preferredDescription = String(post?.metaDescription || post?.excerpt || "").trim();
   const generatedDescription = String(options?.fallbackDescription || "").trim();
@@ -355,6 +397,27 @@ function applyPostSeo(post, options = {}) {
     dateModified,
     mainEntityOfPage: articleUrl
   });
+
+  if (homeUrl && articleUrl) {
+    updateBreadcrumbStructuredData({
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        {
+          "@type": "ListItem",
+          position: 1,
+          name: "Home",
+          item: homeUrl
+        },
+        {
+          "@type": "ListItem",
+          position: 2,
+          name: title || "Post",
+          item: articleUrl
+        }
+      ]
+    });
+  }
 }
 
 function isTwitterStatusUrl(value) {
@@ -760,11 +823,11 @@ function getPostImageUrl(post) {
 }
 
 function getPostHref(post) {
-  const encodedId = encodeURIComponent(String(post?._id || ""));
   const encodedSlug = encodeURIComponent(String(post?.slug || ""));
-  return encodedId
-    ? `post.html?id=${encodedId}${encodedSlug ? `&slug=${encodedSlug}` : ""}`
-    : `post.html?slug=${encodedSlug}`;
+  if (encodedSlug) return `post.html?slug=${encodedSlug}`;
+
+  const encodedId = encodeURIComponent(String(post?._id || ""));
+  return encodedId ? `post.html?id=${encodedId}` : "post.html";
 }
 
 function normalizePostCategories(post) {
@@ -1155,6 +1218,7 @@ function getPostsWithActiveFilters(posts) {
 function renderFilterSidebar(categories) {
   const filtersContainer = document.getElementById("category-filters");
   const clearButton = document.getElementById("clear-filters");
+  const categorySearchInput = document.getElementById("category-filter-search");
   if (!filtersContainer) return;
 
   const isAuthorPage = !!document.getElementById("author-page") && !document.getElementById("home");
@@ -1179,10 +1243,28 @@ function renderFilterSidebar(categories) {
 
   filtersContainer.innerHTML = "";
 
+  if (categorySearchInput && categorySearchInput.dataset.bound !== "1") {
+    categorySearchInput.dataset.bound = "1";
+    categorySearchInput.addEventListener("input", () => {
+      categoryFilterQuery = String(categorySearchInput.value || "").trim().toLowerCase();
+      renderFilterSidebar(getAllCategories(allPosts));
+    });
+  }
+
+  if (categorySearchInput && categorySearchInput.value !== categoryFilterQuery) {
+    categorySearchInput.value = categoryFilterQuery;
+  }
+
+  const visibleCategories = categoryFilterQuery
+    ? categories.filter(category => category.toLowerCase().includes(categoryFilterQuery))
+    : categories;
+
   if (!categories.length) {
     filtersContainer.innerHTML = '<div class="loading">No categories yet.</div>';
+  } else if (!visibleCategories.length) {
+    filtersContainer.innerHTML = '<div class="loading">No matching categories.</div>';
   } else {
-    categories.forEach(category => {
+    visibleCategories.forEach(category => {
       const row = document.createElement("label");
       row.className = "category-filter-item";
 
@@ -1215,8 +1297,10 @@ function renderFilterSidebar(categories) {
 
   if (clearButton) {
     clearButton.onclick = () => {
-      if (!selectedCategoryFilters.size) return;
+      if (!selectedCategoryFilters.size && !categoryFilterQuery) return;
       selectedCategoryFilters.clear();
+      categoryFilterQuery = "";
+      if (categorySearchInput) categorySearchInput.value = "";
       latestVisibleCount = HOME_BASE_VISIBLE_COUNT;
       latestPaginationMode = "expand";
       searchVisibleCount = POSTS_PAGE_SIZE;
@@ -1578,7 +1662,7 @@ async function loadPost() {
     getPostImageUrl(post)
   );
 
-  const articleUrl = toSafeHttpUrl(window.location.href);
+  const articleUrl = buildCanonicalPostUrl(post);
   const fallbackDescription = bodyHtml
     .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
@@ -1590,6 +1674,8 @@ async function loadPost() {
     imageUrl: heroUrl || toSafeHttpUrl(DEFAULT_POST_IMAGE),
     fallbackDescription
   });
+
+  syncCanonicalHistory(articleUrl);
 
   container.innerHTML = `
     <h1>${safePostTitle}</h1>
@@ -1903,14 +1989,17 @@ async function loadComments(postId, sort = currentCommentSort) {
     const authorWrap = document.createElement("div");
     authorWrap.className = "comment-author";
 
-    if (comment.authorAvatar) {
-      const avatar = document.createElement("img");
-      avatar.src = comment.authorAvatar;
-      avatar.alt = comment.authorName || "User avatar";
-      avatar.loading = "lazy";
-      avatar.decoding = "async";
-      authorWrap.appendChild(avatar);
-    }
+    const avatar = document.createElement("img");
+    const safeAvatar = toSafeHttpUrl(comment.authorAvatar || "") || DEFAULT_AUTHOR_AVATAR;
+    avatar.src = safeAvatar;
+    avatar.alt = comment.authorName || "User avatar";
+    avatar.loading = "lazy";
+    avatar.decoding = "async";
+    avatar.onerror = () => {
+      avatar.onerror = null;
+      avatar.src = DEFAULT_AUTHOR_AVATAR;
+    };
+    authorWrap.appendChild(avatar);
 
     const identity = document.createElement("div");
     identity.className = "comment-author-meta";
@@ -2205,6 +2294,129 @@ function getDateKey(date) {
   return `${year}-${month}-${day}`;
 }
 
+function getEventDateKey(event) {
+  const parsed = new Date(event?.date);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return getDateKey(parsed);
+}
+
+function normalizeCalendarSearchText(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function setCalendarJumpStatus(message, isError = false) {
+  const status = document.getElementById("calendar-jump-status");
+  if (!status) return;
+  status.textContent = String(message || "").trim();
+  status.classList.toggle("is-error", Boolean(isError));
+}
+
+function getCalendarEventTitles() {
+  return [...new Set(
+    releaseEvents
+      .map(event => String(event?.title || "").trim())
+      .filter(Boolean)
+  )].sort((a, b) => a.localeCompare(b));
+}
+
+function hideCalendarEventSuggestions() {
+  const suggestions = document.getElementById("calendar-event-suggestions");
+  if (!suggestions) return;
+  suggestions.hidden = true;
+  suggestions.innerHTML = "";
+}
+
+function renderCalendarEventSuggestions(query) {
+  const suggestions = document.getElementById("calendar-event-suggestions");
+  const jumpInput = document.getElementById("calendar-event-search");
+  if (!suggestions || !jumpInput) return;
+
+  const normalized = normalizeCalendarSearchText(query);
+  if (!normalized) {
+    hideCalendarEventSuggestions();
+    return;
+  }
+
+  const titles = getCalendarEventTitles();
+  const matches = titles
+    .filter(title => title.toLowerCase().includes(normalized))
+    .slice(0, 8);
+
+  suggestions.innerHTML = "";
+
+  if (!matches.length) {
+    const empty = document.createElement("div");
+    empty.className = "calendar-event-suggestion-empty";
+    empty.textContent = "No matching events";
+    suggestions.appendChild(empty);
+    suggestions.hidden = false;
+    return;
+  }
+
+  matches.forEach((title) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "calendar-event-suggestion-item";
+    button.textContent = title;
+    button.addEventListener("mousedown", (event) => {
+      event.preventDefault();
+    });
+    button.addEventListener("click", () => {
+      jumpInput.value = title;
+      hideCalendarEventSuggestions();
+      jumpInput.focus();
+    });
+    suggestions.appendChild(button);
+  });
+
+  suggestions.hidden = false;
+}
+
+function findBestReleaseEventMatch(query) {
+  const normalizedQuery = normalizeCalendarSearchText(query);
+  if (!normalizedQuery) return null;
+
+  const validEvents = releaseEvents
+    .map(event => ({
+      ...event,
+      _title: String(event?.title || "").trim(),
+      _normalizedTitle: normalizeCalendarSearchText(event?.title),
+      _dateObj: new Date(event?.date)
+    }))
+    .filter(event => event._title && !Number.isNaN(event._dateObj.getTime()));
+
+  if (!validEvents.length) return null;
+
+  const rankByUpcoming = (event) => {
+    const now = Date.now();
+    const delta = event._dateObj.getTime() - now;
+    return delta >= 0 ? delta : Number.MAX_SAFE_INTEGER + Math.abs(delta);
+  };
+
+  const exact = validEvents
+    .filter(event => event._normalizedTitle === normalizedQuery)
+    .sort((a, b) => rankByUpcoming(a) - rankByUpcoming(b));
+  if (exact.length) return exact[0];
+
+  const partial = validEvents
+    .filter(event => event._normalizedTitle.includes(normalizedQuery))
+    .sort((a, b) => rankByUpcoming(a) - rankByUpcoming(b));
+
+  return partial.length ? partial[0] : null;
+}
+
+function jumpToReleaseEvent(event) {
+  const eventDate = new Date(event?.date);
+  if (Number.isNaN(eventDate.getTime())) return false;
+
+  calendarViewDate = new Date(eventDate.getFullYear(), eventDate.getMonth(), 1);
+  calendarJumpDateKey = getDateKey(eventDate);
+  calendarSelectedDateKey = getDateKey(eventDate);
+  calendarJumpEventTitle = normalizeCalendarSearchText(event?.title);
+  renderReleaseCalendar();
+  return true;
+}
+
 async function loadReleaseEvents() {
   try {
     const response = await fetch("/api/releases");
@@ -2248,7 +2460,11 @@ function renderReleaseCalendar() {
     year: "numeric"
   });
 
-  const releaseDates = new Set(releaseEvents.map(event => event.date));
+  const releaseDates = new Set(
+    releaseEvents
+      .map(event => getEventDateKey(event))
+      .filter(Boolean)
+  );
   daysContainer.innerHTML = "";
 
   for (let i = 0; i < startWeekDay; i += 1) {
@@ -2269,6 +2485,33 @@ function renderReleaseCalendar() {
     }
     if (releaseDates.has(dateKey)) {
       dayCell.classList.add("has-release");
+      dayCell.setAttribute("role", "button");
+      dayCell.tabIndex = 0;
+      dayCell.setAttribute("aria-label", `Show releases for ${date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}`);
+      dayCell.addEventListener("click", () => {
+        calendarSelectedDateKey = calendarSelectedDateKey === dateKey ? "" : dateKey;
+        calendarJumpDateKey = dateKey;
+        calendarJumpEventTitle = "";
+        setCalendarJumpStatus(
+          calendarSelectedDateKey
+            ? `Showing releases for ${date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}.`
+            : "Showing all releases this month.",
+          false
+        );
+        renderReleaseCalendar();
+      });
+      dayCell.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          dayCell.click();
+        }
+      });
+    }
+    if (calendarJumpDateKey && dateKey === calendarJumpDateKey) {
+      dayCell.classList.add("is-jump-target");
+    }
+    if (calendarSelectedDateKey && dateKey === calendarSelectedDateKey) {
+      dayCell.classList.add("is-selected-date");
     }
 
     daysContainer.appendChild(dayCell);
@@ -2281,13 +2524,26 @@ function renderReleaseCalendar() {
     })
     .sort((a, b) => new Date(a.date) - new Date(b.date));
 
+  if (calendarSelectedDateKey) {
+    const selectedInCurrentMonth = monthEvents.some((event) => getEventDateKey(event) === calendarSelectedDateKey);
+    if (!selectedInCurrentMonth) {
+      calendarSelectedDateKey = "";
+    }
+  }
+
+  const eventsToRender = calendarSelectedDateKey
+    ? monthEvents.filter((event) => getEventDateKey(event) === calendarSelectedDateKey)
+    : monthEvents;
+
   releaseList.innerHTML = "";
-  if (!monthEvents.length) {
+  if (!eventsToRender.length) {
     releaseList.innerHTML = '<div class="release-item"><div class="release-item-meta">No planned releases this month.</div></div>';
     return;
   }
 
-  monthEvents.forEach(event => {
+  let jumpTargetReleaseItem = null;
+
+  eventsToRender.forEach(event => {
     const item = document.createElement("div");
     item.className = "release-item";
     const name = document.createElement("div");
@@ -2298,6 +2554,20 @@ function renderReleaseCalendar() {
     meta.textContent = `${String(event.type || "")}${event.type ? " • " : ""}${formatReleaseDate(event.date)}`;
     item.appendChild(name);
     item.appendChild(meta);
+
+    const eventDateKey = getDateKey(new Date(event.date));
+    if (
+      calendarJumpDateKey &&
+      eventDateKey === calendarJumpDateKey &&
+      normalizeCalendarSearchText(event.title) === calendarJumpEventTitle
+    ) {
+      item.classList.add("is-jump-target");
+      if (!jumpTargetReleaseItem) jumpTargetReleaseItem = item;
+    }
+
+    if (calendarSelectedDateKey && eventDateKey === calendarSelectedDateKey) {
+      item.classList.add("is-selected-date");
+    }
 
     if (event.slug) {
       item.style.cursor = "pointer";
@@ -2324,6 +2594,10 @@ function renderReleaseCalendar() {
 
     releaseList.appendChild(item);
   });
+
+  if (jumpTargetReleaseItem) {
+    jumpTargetReleaseItem.scrollIntoView({ block: "nearest" });
+  }
 }
 
 async function initializeReleaseCalendar() {
@@ -2332,12 +2606,74 @@ async function initializeReleaseCalendar() {
 
   await loadReleaseEvents();
 
+  const jumpInput = document.getElementById("calendar-event-search");
+  const jumpButton = document.getElementById("calendar-event-search-btn");
+  const jumpArea = jumpInput?.closest(".calendar-jump");
+
+  const runJump = () => {
+    const query = normalizeCalendarSearchText(jumpInput?.value || "");
+    hideCalendarEventSuggestions();
+    if (!query) {
+      setCalendarJumpStatus("Type an event title to jump.", true);
+      return;
+    }
+
+    const match = findBestReleaseEventMatch(query);
+    if (!match) {
+      setCalendarJumpStatus("No matching event found.", true);
+      return;
+    }
+
+    const moved = jumpToReleaseEvent(match);
+    if (!moved) {
+      setCalendarJumpStatus("Event date is invalid.", true);
+      return;
+    }
+
+    setCalendarJumpStatus(`Jumped to ${match._title} (${formatReleaseDate(match.date)}).`, false);
+  };
+
+  if (jumpButton && jumpButton.dataset.bound !== "1") {
+    jumpButton.dataset.bound = "1";
+    jumpButton.addEventListener("click", runJump);
+  }
+
+  if (jumpInput && jumpInput.dataset.bound !== "1") {
+    jumpInput.dataset.bound = "1";
+    jumpInput.addEventListener("input", () => {
+      renderCalendarEventSuggestions(jumpInput.value || "");
+    });
+    jumpInput.addEventListener("focus", () => {
+      renderCalendarEventSuggestions(jumpInput.value || "");
+    });
+    jumpInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        runJump();
+      } else if (event.key === "Escape") {
+        hideCalendarEventSuggestions();
+      }
+    });
+
+    document.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const isInsideJump = jumpArea ? jumpArea.contains(target) : false;
+      const suggestions = document.getElementById("calendar-event-suggestions");
+      const isInsideSuggestions = suggestions ? suggestions.contains(target) : false;
+      if (!isInsideJump && !isInsideSuggestions) {
+        hideCalendarEventSuggestions();
+      }
+    });
+  }
+
   const prevButton = document.getElementById("calendar-prev");
   const nextButton = document.getElementById("calendar-next");
 
   if (prevButton) {
     prevButton.addEventListener("click", () => {
       calendarViewDate.setMonth(calendarViewDate.getMonth() - 1);
+      calendarSelectedDateKey = "";
       renderReleaseCalendar();
     });
   }
@@ -2345,6 +2681,7 @@ async function initializeReleaseCalendar() {
   if (nextButton) {
     nextButton.addEventListener("click", () => {
       calendarViewDate.setMonth(calendarViewDate.getMonth() + 1);
+      calendarSelectedDateKey = "";
       renderReleaseCalendar();
     });
   }
