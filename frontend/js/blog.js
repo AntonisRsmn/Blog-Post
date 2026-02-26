@@ -1704,8 +1704,9 @@ async function loadPost() {
   const summaryBox = container.querySelector("#article-summary-box");
   const summaryElement = container.querySelector("#article-summary");
   const summaryId = String(post?._id || post?.slug || "").trim();
-  const summaryLockKey = `article-summary-locked:${summaryId}`;
-  const summaryTextKey = `article-summary-text:${summaryId}`;
+  const summaryVersion = "v2";
+  const summaryLockKey = `article-summary-locked:${summaryVersion}:${summaryId}`;
+  const summaryTextKey = `article-summary-text:${summaryVersion}:${summaryId}`;
 
   renderArticleToc(container);
   initializeReadingProgress();

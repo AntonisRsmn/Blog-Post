@@ -453,13 +453,30 @@ function buildAnalyticsPayload(posts) {
 }
 
 function buildFallbackSummary(post) {
-  const excerpt = sanitizeText(post?.excerpt, 280);
-  if (excerpt) return excerpt;
-
+  const excerpt = sanitizeText(post?.excerpt, 800);
   const body = extractPostPlainText(post);
-  if (!body) return "Η σύνοψη δεν είναι διαθέσιμη για αυτό το άρθρο ακόμα.";
-  if (body.length <= 280) return body;
-  return `${body.slice(0, 277).trimEnd()}...`;
+  const source = [excerpt, body].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+
+  if (!source) return "Η σύνοψη δεν είναι διαθέσιμη για αυτό το άρθρο ακόμα.";
+
+  const sentences = source
+    .split(/(?<=[.!?;·])\s+/)
+    .map(part => part.trim())
+    .filter(Boolean);
+
+  if (!sentences.length) {
+    return sanitizeText(source, 1200);
+  }
+
+  let paragraph = "";
+  for (const sentence of sentences) {
+    const candidate = paragraph ? `${paragraph} ${sentence}` : sentence;
+    if (candidate.length > 1200) break;
+    paragraph = candidate;
+    if (paragraph.length >= 900 && /[.!?;·]$/.test(paragraph)) break;
+  }
+
+  return paragraph || sanitizeText(source, 1200);
 }
 
 async function generateAiSummary(post) {
@@ -523,12 +540,12 @@ async function generateAiSummary(post) {
         },
         body: JSON.stringify({
           model: provider.model,
-          temperature: 0.3,
-          max_tokens: 180,
+          temperature: 0.25,
+          max_tokens: 420,
           messages: [
             {
               role: "system",
-              content: "Δημιουργείς σύντομες περιλήψεις άρθρων για αναγνώστες ιστοσελίδας. Η απάντηση ΠΑΝΤΑ στα Ελληνικά. Κράτα το κείμενο σαφές και αντικειμενικό, 2 έως 4 μικρές προτάσεις, χωρίς bullets."
+              content: "Δημιουργείς περιλήψεις άρθρων για αναγνώστες ιστοσελίδας. Η απάντηση ΠΑΝΤΑ στα Ελληνικά, σε μία ενιαία παράγραφο χωρίς bullets, με πλήρη βασικά σημεία (τι, γιατί, πώς, σημαντικά δεδομένα/συμπέρασμα) και καθαρή ροή. Απόφυγε γενικότητες και μη κόβεις απότομα το κείμενο."
             },
             {
               role: "user",
@@ -545,7 +562,7 @@ async function generateAiSummary(post) {
 
       const payload = await response.json().catch(() => ({}));
       const raw = payload?.choices?.[0]?.message?.content;
-      const summary = sanitizeText(raw, 520);
+      const summary = sanitizeText(raw, 1600);
 
       if (!summary) {
         continue;
