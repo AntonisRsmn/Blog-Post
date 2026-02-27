@@ -158,7 +158,7 @@ article h1 {
 
 .article-content p {
   margin: 20px 0;
-  color: var(--text-secondary);
+  color: var(--text);
 }
 
 .article-quote {

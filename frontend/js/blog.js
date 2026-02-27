@@ -449,6 +449,36 @@ function extractTwitterStatusUrl(text) {
 function renderLinkedText(text) {
   const raw = String(text || "");
 
+  function preserveInlineFormatting(value) {
+    const tokens = [];
+    const tokenized = String(value || "").replace(/<\/?(?:b|strong|i|em|u|mark|code)\b[^>]*>/gi, (match) => {
+      const tagMatch = String(match || "").match(/^<\/?\s*([a-z0-9]+)/i);
+      const tagName = String(tagMatch?.[1] || "").toLowerCase();
+      if (!tagName) return "";
+
+      const isClosing = /^<\//.test(match);
+      const normalizedTag = tagName === "b"
+        ? "strong"
+        : tagName === "i"
+          ? "em"
+          : tagName;
+      const safeTag = isClosing ? `</${normalizedTag}>` : `<${normalizedTag}>`;
+      const token = `__INLINE_FMT_${tokens.length}__`;
+      tokens.push({ token, safeTag });
+      return token;
+    });
+
+    return {
+      tokenized,
+      restore(valueToRestore) {
+        return tokens.reduce(
+          (output, entry) => output.split(entry.token).join(entry.safeTag),
+          String(valueToRestore || "")
+        );
+      }
+    };
+  }
+
   function linkifyPlainText(value) {
     const input = String(value || "");
     const urlRegex = /https?:\/\/[^\s<]+/gi;
@@ -479,17 +509,19 @@ function renderLinkedText(text) {
     return String(value || "").replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
   }
 
+  const preserved = preserveInlineFormatting(raw);
+  const input = preserved.tokenized;
   const anchorRegex = /<a\b[^>]*href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   let html = "";
   let lastIndex = 0;
 
-  for (const match of raw.matchAll(anchorRegex)) {
+  for (const match of input.matchAll(anchorRegex)) {
     const start = Number(match.index || 0);
     const fullMatch = String(match[0] || "");
     const href = String(match[1] || "");
     const label = stripTags(match[2] || "");
 
-    html += linkifyPlainText(raw.slice(lastIndex, start));
+    html += linkifyPlainText(input.slice(lastIndex, start));
 
     const safeUrl = toSafeHttpUrl(href);
     if (!safeUrl) {
@@ -502,8 +534,8 @@ function renderLinkedText(text) {
     lastIndex = start + fullMatch.length;
   }
 
-  html += linkifyPlainText(raw.slice(lastIndex));
-  return html;
+  html += linkifyPlainText(input.slice(lastIndex));
+  return preserved.restore(html);
 }
 
 function renderParagraphBlock(text) {
@@ -1704,7 +1736,7 @@ async function loadPost() {
   const summaryBox = container.querySelector("#article-summary-box");
   const summaryElement = container.querySelector("#article-summary");
   const summaryId = String(post?._id || post?.slug || "").trim();
-  const summaryVersion = "v2";
+  const summaryVersion = "v3";
   const summaryLockKey = `article-summary-locked:${summaryVersion}:${summaryId}`;
   const summaryTextKey = `article-summary-text:${summaryVersion}:${summaryId}`;
 

@@ -453,6 +453,7 @@ function buildAnalyticsPayload(posts) {
 }
 
 function buildFallbackSummary(post) {
+  const profile = getSummaryLengthProfile(post);
   const excerpt = sanitizeText(post?.excerpt, 800);
   const body = extractPostPlainText(post);
   const source = [excerpt, body].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
@@ -465,18 +466,101 @@ function buildFallbackSummary(post) {
     .filter(Boolean);
 
   if (!sentences.length) {
-    return sanitizeText(source, 1200);
+    return finalizeSummaryText(source, { maxLength: profile.maxLength });
   }
 
   let paragraph = "";
   for (const sentence of sentences) {
     const candidate = paragraph ? `${paragraph} ${sentence}` : sentence;
-    if (candidate.length > 1200) break;
+    if (candidate.length > profile.maxLength) break;
     paragraph = candidate;
-    if (paragraph.length >= 900 && /[.!?;·]$/.test(paragraph)) break;
+    if (paragraph.length >= profile.earlyStopLength && /[.!?;·]$/.test(paragraph)) break;
   }
 
-  return paragraph || sanitizeText(source, 1200);
+  return finalizeSummaryText(paragraph || source, { maxLength: profile.maxLength });
+}
+
+function getSummaryLengthProfile(post) {
+  const excerpt = sanitizeText(post?.excerpt, 800);
+  const body = extractPostPlainText(post);
+  const source = [excerpt, body].filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
+  const wordCount = source ? source.split(" ").filter(Boolean).length : 0;
+  const charCount = source.length;
+
+  if (wordCount >= 900 || charCount >= 6500) {
+    return {
+      minLength: 520,
+      maxLength: 920,
+      sentenceGuide: "4-6",
+      tokenLimit: 720,
+      earlyStopLength: 700
+    };
+  }
+
+  if (wordCount >= 420 || charCount >= 2800) {
+    return {
+      minLength: 380,
+      maxLength: 700,
+      sentenceGuide: "3-5",
+      tokenLimit: 560,
+      earlyStopLength: 520
+    };
+  }
+
+  return {
+    minLength: 260,
+    maxLength: 480,
+    sentenceGuide: "2-4",
+    tokenLimit: 420,
+    earlyStopLength: 360
+  };
+}
+
+function finalizeSummaryText(value, options = {}) {
+  const maxLength = Math.max(180, Number(options.maxLength) || 520);
+  let text = sanitizeText(value, maxLength * 3)
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!text) return "";
+
+  const sentenceRegex = /[^.!?;·]+[.!?;·](?:\s+|$)/g;
+  const fullSentences = text.match(sentenceRegex) || [];
+
+  if (fullSentences.length) {
+    let result = "";
+    for (const sentence of fullSentences) {
+      const next = result ? `${result} ${sentence.trim()}` : sentence.trim();
+      if (next.length > maxLength) break;
+      result = next;
+    }
+
+    if (result) {
+      return result.trim();
+    }
+  }
+
+  if (text.length > maxLength) {
+    text = text.slice(0, maxLength).trim();
+  }
+
+  const lastPunctuationIndex = Math.max(
+    text.lastIndexOf("."),
+    text.lastIndexOf("!"),
+    text.lastIndexOf("?"),
+    text.lastIndexOf(";"),
+    text.lastIndexOf("·")
+  );
+
+  if (lastPunctuationIndex >= Math.floor(text.length * 0.55)) {
+    text = text.slice(0, lastPunctuationIndex + 1).trim();
+  }
+
+  if (!/[.!?;·]$/.test(text)) {
+    text = `${text}.`;
+  }
+
+  return text;
 }
 
 async function generateAiSummary(post) {
@@ -520,6 +604,7 @@ async function generateAiSummary(post) {
   const title = sanitizeText(post?.title, 200);
   const excerpt = sanitizeText(post?.excerpt, 400);
   const contentText = extractPostPlainText(post).slice(0, 7000);
+  const profile = getSummaryLengthProfile(post);
 
   const prompt = [
     `Title: ${title}`,
@@ -541,11 +626,11 @@ async function generateAiSummary(post) {
         body: JSON.stringify({
           model: provider.model,
           temperature: 0.25,
-          max_tokens: 420,
+          max_tokens: profile.tokenLimit,
           messages: [
             {
               role: "system",
-              content: "Δημιουργείς περιλήψεις άρθρων για αναγνώστες ιστοσελίδας. Η απάντηση ΠΑΝΤΑ στα Ελληνικά, σε μία ενιαία παράγραφο χωρίς bullets, με πλήρη βασικά σημεία (τι, γιατί, πώς, σημαντικά δεδομένα/συμπέρασμα) και καθαρή ροή. Απόφυγε γενικότητες και μη κόβεις απότομα το κείμενο."
+              content: `Δημιουργείς περιλήψεις άρθρων για αναγνώστες ιστοσελίδας. Η απάντηση ΠΑΝΤΑ στα Ελληνικά, σε μία ενιαία παράγραφο χωρίς bullets, με όλα τα ουσιώδη σημεία (τι, γιατί, πώς, βασικά δεδομένα/συμπέρασμα). Μήκος στόχος: ${profile.sentenceGuide} προτάσεις, περίπου ${profile.minLength}-${profile.maxLength} χαρακτήρες. Απόφυγε γενικότητες και μη κόβεις απότομα το κείμενο.`
             },
             {
               role: "user",
@@ -562,7 +647,7 @@ async function generateAiSummary(post) {
 
       const payload = await response.json().catch(() => ({}));
       const raw = payload?.choices?.[0]?.message?.content;
-      const summary = sanitizeText(raw, 1600);
+      const summary = finalizeSummaryText(raw, { maxLength: profile.maxLength });
 
       if (!summary) {
         continue;
